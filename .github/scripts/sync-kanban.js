@@ -120,6 +120,71 @@ async function createOrUpdateIssue({ owner, repo, title, body, labels, existingI
   }
 }
 
+async function listAvailableProjects() {
+  console.log('\n🔍 Searching for available projects...');
+  
+  try {
+    // Try to list user projects
+    const userQuery = `
+      query($login: String!) {
+        user(login: $login) {
+          projectsV2(first: 10) {
+            nodes {
+              number
+              title
+              url
+              closed
+            }
+          }
+        }
+      }
+    `;
+    
+    const userRes = await octokit.graphql(userQuery, { login: OWNER }).catch(() => null);
+    if (userRes?.user?.projectsV2?.nodes?.length > 0) {
+      console.log('📋 User projects found:');
+      userRes.user.projectsV2.nodes.forEach(project => {
+        const status = project.closed ? '(CLOSED)' : '(OPEN)';
+        console.log(`  #${project.number}: ${project.title} ${status}`);
+        console.log(`    URL: ${project.url}`);
+      });
+    } else {
+      console.log('❌ No user projects found');
+    }
+
+    // Try to list organization projects
+    const orgQuery = `
+      query($login: String!) {
+        organization(login: $login) {
+          projectsV2(first: 10) {
+            nodes {
+              number
+              title
+              url
+              closed
+            }
+          }
+        }
+      }
+    `;
+    
+    const orgRes = await octokit.graphql(orgQuery, { login: OWNER }).catch(() => null);
+    if (orgRes?.organization?.projectsV2?.nodes?.length > 0) {
+      console.log('🏢 Organization projects found:');
+      orgRes.organization.projectsV2.nodes.forEach(project => {
+        const status = project.closed ? '(CLOSED)' : '(OPEN)';
+        console.log(`  #${project.number}: ${project.title} ${status}`);
+        console.log(`    URL: ${project.url}`);
+      });
+    } else {
+      console.log('❌ No organization projects found');
+    }
+    
+  } catch (error) {
+    console.log('❌ Error listing projects:', error.message);
+  }
+}
+
 async function getProjectNode() {
   try {
     // Try organization project first
@@ -166,8 +231,14 @@ async function getProjectNode() {
       return userRes.user.projectV2;
     }
 
-    throw new Error(`Project v2 #${PROJECT_NUMBER} not found for owner ${OWNER}`);
+    // If not found, list available projects to help debug
+    await listAvailableProjects();
+    
+    throw new Error(`❌ Project v2 #${PROJECT_NUMBER} not found for owner ${OWNER}. Please check the project number above and update PROJECT_NUMBER in your workflow.`);
   } catch (error) {
+    if (error.message.includes('not found for owner')) {
+      throw error; // Re-throw our custom error
+    }
     console.error('Error finding project:', error);
     throw error;
   }
