@@ -11,4 +11,9 @@
     <Folder Include="Tasks\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include=".github\scripts\populate-kanban.js" />
+    <None Include=".github\workflows\populate-kanban.yml" />
+  </ItemGroup>
+
 </Project>
