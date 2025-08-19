@@ -201,6 +201,21 @@ function extractIssueNumber(ref, owner, repo) {
   return null;
 }
 
+// replace the non-recursive read with this:
+function walkMdFiles(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    const files = [];
+    for (const e of entries) {
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) {
+            files.push(...walkMdFiles(full));
+        } else if (e.isFile() && e.name.toLowerCase().endsWith(".md")) {
+            files.push(full);
+        }
+    }
+    return files;
+}
+
 // ---------- MAIN ----------
 
 (async () => {
@@ -208,7 +223,7 @@ function extractIssueNumber(ref, owner, repo) {
   const tasksDir = path.join(process.cwd(), TASKS_DIR);
   if (!fs.existsSync(tasksDir)) { console.log("No tasks dir"); return; }
 
-  const files = fs.readdirSync(tasksDir).filter(f => f.endsWith(".md"));
+  const files = walkMdFiles(tasksDir);
   if (!files.length) { console.log("No md files"); return; }
 
   const project = await getProjectNode();
