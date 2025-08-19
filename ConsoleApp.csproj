@@ -12,4 +12,8 @@
     <None Include=".github\workflows\populate-kanban.yml" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Tasks\In progress\" />
+  </ItemGroup>
+
 </Project>
