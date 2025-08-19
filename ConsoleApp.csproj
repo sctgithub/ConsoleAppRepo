@@ -14,6 +14,11 @@
 
   <ItemGroup>
     <Folder Include="Tasks\In progress\" />
+    <Folder Include="Tasks\In review\" />
+    <Folder Include="Tasks\In testing\" />
+    <Folder Include="Tasks\Archive\" />
+    <Folder Include="Tasks\Ready for deploy to staging\" />
+    <Folder Include="Tasks\Ready for deploy to test\" />
   </ItemGroup>
 
 </Project>
