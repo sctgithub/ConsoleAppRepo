@@ -216,7 +216,6 @@ function walkMdFilesRel(dir) {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
 
     for (const e of entries) {
-        console.log(e.name);
         const full = path.join(dir, e.name);
 
         if (e.isDirectory()) {
