@@ -1,320 +1,380 @@
+// .github/scripts/populate-kanban.js
+// Node 18+
+// Requires: gray-matter, @actions/github, @actions/core
+
 const fs = require("fs");
 const path = require("path");
 const matter = require("gray-matter");
 const core = require("@actions/core");
 const github = require("@actions/github");
 
-const token = process.env.PROJECTS_TOKEN || process.env.GITHUB_TOKEN;
-const OWNER = process.env.OWNER;
-const PROJECT_NUMBER = Number(process.env.PROJECT_NUMBER);
-const STATUS_FIELD_NAME = process.env.STATUS_FIELD_NAME || "Status";
-const TASKS_DIR = process.env.TASKS_DIR || "Tasks";
-const RELATIONSHIP_HEADER = process.env.RELATIONSHIP_HEADER || "Relationships";
-const COMMENT_HEADER = process.env.COMMENT_HEADER || "Automated Notes";
+(async function main() {
+    try {
+        // --- ENV / CONFIG --------------------------------------------------------
+        const token =
+            process.env.PROJECTS_TOKEN ||
+            process.env.GITHUB_TOKEN ||
+            core.getInput("token") ||
+            null;
 
-if (!token) { core.setFailed("PROJECTS_TOKEN missing"); process.exit(1); }
-if (!OWNER || !PROJECT_NUMBER) { core.setFailed("OWNER/PROJECT_NUMBER missing"); process.exit(1); }
+        if (!token) {
+            throw new Error("PROJECTS_TOKEN (or GITHUB_TOKEN) missing");
+        }
 
-const octokit = github.getOctokit(token);
+        const PROJECT_OWNER = process.env.OWNER; // org or username that owns the Project v2
+        const PROJECT_NUMBER = Number(process.env.PROJECT_NUMBER);
+        const STATUS_FIELD_NAME = process.env.STATUS_FIELD_NAME || "Status";
+        const TASKS_DIR = process.env.TASKS_DIR || "Tasks";
 
-const mdToBool = v => typeof v === "string" ? v.trim().length > 0 : !!v;
+        const RELATIONSHIP_HEADER =
+            process.env.RELATIONSHIP_HEADER || "Relationships";
+        const COMMENT_HEADER = process.env.COMMENT_HEADER || "Automated Notes";
 
-// ---------- GraphQL helpers ----------
+        if (!PROJECT_OWNER || !PROJECT_NUMBER) {
+            throw new Error("OWNER/PROJECT_NUMBER missing");
+        }
 
-async function getProjectNode() {
-  const orgQ = `query($login:String!,$number:Int!){ organization(login:$login){ projectV2(number:$number){ id title }}}`;
-  const userQ = `query($login:String!,$number:Int!){ user(login:$login){ projectV2(number:$number){ id title }}}`;
-  const asOrg = await octokit.graphql(orgQ, { login: OWNER, number: PROJECT_NUMBER }).catch(()=>null);
-  if (asOrg?.organization?.projectV2) return asOrg.organization.projectV2;
-  const asUser = await octokit.graphql(userQ, { login: OWNER, number: PROJECT_NUMBER }).catch(()=>null);
-  if (asUser?.user?.projectV2) return asUser.user.projectV2;
-  throw new Error(`Project v2 #${PROJECT_NUMBER} not found for ${OWNER}`);
-}
+        // repo where issues will be created (the current workflow repo)
+        const { owner: REPO_OWNER, repo: REPO_NAME } = github.context.repo;
 
-async function getProjectFields(projectId) {
-  const q = `
-    query($projectId:ID!){
-      node(id:$projectId){
-        ... on ProjectV2 {
-          fields(first:100){
-            nodes{
-              ... on ProjectV2FieldCommon { id name dataType }
-              ... on ProjectV2SingleSelectField { id name dataType options{ id name } }
+        const octokit = github.getOctokit(token);
+
+        // Normalize base dir to ABSOLUTE
+        const tasksDirAbs = path.resolve(TASKS_DIR);
+
+        // --- HELPERS -------------------------------------------------------------
+
+        /** Recursively collect absolute paths of all .md under baseDir */
+        function walkMdAbs(baseDir) {
+            const out = [];
+            const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+            for (const e of entries) {
+                const full = path.join(baseDir, e.name);
+                if (e.isDirectory()) {
+                    out.push(...walkMdAbs(full));
+                } else if (e.isFile() && e.name.toLowerCase().endsWith(".md")) {
+                    out.push(full);
+                }
+            }
+            return out;
+        }
+
+        /** Safe mkdir -p */
+        function ensureDir(dir) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+
+        /** Read a markdown file (absolute path), return {data, content, orig} */
+        function readMd(absPath) {
+            const raw = fs.readFileSync(absPath, "utf8");
+            const parsed = matter(raw);
+            return { ...parsed, orig: raw };
+        }
+
+        /** Write back frontmatter + content to absolute file path */
+        function writeMd(absPath, data, content) {
+            const out = matter.stringify(content, data);
+            fs.writeFileSync(absPath, out, "utf8");
+        }
+
+        /** Move a file from abs->abs if different */
+        function moveIfNeeded(srcAbs, destAbs) {
+            if (path.resolve(srcAbs) === path.resolve(destAbs)) return destAbs;
+            ensureDir(path.dirname(destAbs));
+            fs.renameSync(srcAbs, destAbs);
+            return destAbs;
+        }
+
+        /** Returns repo id (node ID) and owner/repo info */
+        async function getRepoNode() {
+            const q = `
+        query($owner:String!, $name:String!) {
+          repository(owner:$owner, name:$name) { id name owner { login } }
+        }
+      `;
+            const r = await octokit.graphql(q, { owner: REPO_OWNER, name: REPO_NAME });
+            if (!r?.repository?.id) {
+                throw new Error("Repository node not found");
+            }
+            return r.repository;
+        }
+
+        /** Get ProjectV2 node by OWNER and number */
+        async function getProjectNode() {
+            // Try as org first, then as user
+            const q = `
+        query($org:String!, $user:String!, $num:Int!) {
+          org: organization(login:$org) { projectV2(number:$num) { id title } }
+          usr: user(login:$user) { projectV2(number:$num) { id title } }
+        }
+      `;
+            const r = await octokit.graphql(q, {
+                org: PROJECT_OWNER,
+                user: PROJECT_OWNER,
+                num: PROJECT_NUMBER,
+            });
+
+            const proj = r?.org?.projectV2 || r?.usr?.projectV2;
+            if (!proj?.id) {
+                throw new Error(
+                    `Project v2 #${PROJECT_NUMBER} not found for ${PROJECT_OWNER}`
+                );
+            }
+            return proj;
+        }
+
+        /** Get all fields for project; return { fieldByName, statusOptionsByName } */
+        async function getProjectFields(projectId) {
+            const q = `
+        query($id:ID!) {
+          node(id:$id) {
+            ... on ProjectV2 {
+              fields(first:100) {
+                nodes {
+                  ... on ProjectV2FieldCommon { id name dataType }
+                  ... on ProjectV2SingleSelectField { id name dataType options { id name } }
+                }
+              }
             }
           }
         }
-      }
-    }`;
-  const res = await octokit.graphql(q, { projectId });
-  const fields = res.node.fields.nodes;
-  const map = new Map(fields.map(f => [f.name, f]));
-  return { fields, map };
-}
+      `;
+            const r = await octokit.graphql(q, { id: projectId });
+            const nodes = r?.node?.fields?.nodes || [];
 
-async function addIssueToProject(projectId, issueNodeId) {
-  const m = `
-    mutation($projectId:ID!,$contentId:ID!){
-      addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}){
-        item{ id }
-      }
-    }`;
-  const res = await octokit.graphql(m, { projectId, contentId: issueNodeId });
-  return res.addProjectV2ItemById.item.id;
-}
+            const fieldByName = new Map();
+            for (const f of nodes) fieldByName.set(f.name, f);
 
-async function setFieldValue({ projectId, itemId, field, value }) {
-  if (!field) return;
-  const base = { projectId, itemId, fieldId: field.id };
-  let val = null;
+            let statusField = fieldByName.get(STATUS_FIELD_NAME);
+            if (!statusField) {
+                throw new Error(
+                    `Project field "${STATUS_FIELD_NAME}" not found. Create a single-select field named "${STATUS_FIELD_NAME}".`
+                );
+            }
+            const options = (statusField.options || []).map((o) => ({
+                id: o.id,
+                name: o.name,
+            }));
+            const statusOptionsByName = new Map(
+                options.map((o) => [o.name.toLowerCase(), o])
+            );
 
-  switch (field.dataType) {
-    case "SINGLE_SELECT": {
-      const opt = field.options.find(o => o.name.toLowerCase() === String(value).trim().toLowerCase());
-      if (!opt) return;
-      val = { singleSelectOptionId: opt.id };
-      break;
-    }
-    case "NUMBER": {
-      const n = Number(value);
-      if (Number.isNaN(n)) return;
-      val = { number: n };
-      break;
-    }
-    case "DATE": {
-      const s = String(value).trim();
-      if (!s) return;
-      val = { date: s }; // YYYY-MM-DD
-      break;
-    }
-    case "TEXT": {
-      const s = String(value ?? "").trim();
-      if (!s) return;
-      val = { text: s };
-      break;
-    }
-    default:
-      return;
-  }
-
-  const m = `
-    mutation($projectId:ID!,$itemId:ID!,$fieldId:ID!,$value:ProjectV2FieldValue!){
-      updateProjectV2ItemFieldValue(input:{
-        projectId:$projectId, itemId:$itemId, fieldId:$fieldId, value:$value
-      }){ projectV2Item{ id } }
-    }`;
-  await octokit.graphql(m, { ...base, value: val });
-}
-
-// ---------- Issue helpers ----------
-
-function repoContext() { return github.context.repo; }
-
-async function ensureLabels({ owner, repo, labels }) {
-  if (!labels?.length) return;
-  try {
-    const existing = await octokit.paginate(octokit.rest.issues.listLabelsForRepo, { owner, repo, per_page: 100 });
-    const names = new Set(existing.map(l => l.name.toLowerCase()));
-    for (const lb of labels) {
-      if (!names.has(lb.toLowerCase())) {
-        await octokit.rest.issues.createLabel({ owner, repo, name: lb });
-      }
-    }
-  } catch { /* ignore create failures (race) */ }
-}
-
-async function setIssueBasics({ owner, repo, issueNumber, assignees, labels, milestoneTitle }) {
-  if (labels?.length) await ensureLabels({ owner, repo, labels });
-  let milestone = undefined;
-  if (milestoneTitle) {
-    const m = await octokit.rest.issues.listMilestones({ owner, repo, state: "open" });
-    const found = m.data.find(mi => mi.title.toLowerCase() === milestoneTitle.toLowerCase());
-    if (found) milestone = found.number;
-  }
-  await octokit.rest.issues.update({
-    owner, repo, issue_number: issueNumber,
-    assignees, labels, milestone
-  });
-}
-
-async function findOrCreateIssue({ owner, repo, filePath, fmTitle, body, existingIssue }) {
-  if (existingIssue) {
-    // Verify it exists
-    try {
-      const { data } = await octokit.rest.issues.get({ owner, repo, issue_number: existingIssue });
-      return { number: data.number, node_id: data.node_id, html_url: data.html_url, created: false };
-    } catch { /* fall through to create */ }
-  }
-
-  // Try exact-title match to reuse
-  const q = `repo:${owner}/${repo} is:issue "${fmTitle.replace(/"/g,'\\"')}" in:title`;
-  const search = await octokit.rest.search.issuesAndPullRequests({ q });
-  const hit = search.data.items.find(i => i.title === fmTitle && !i.pull_request);
-  if (hit) return { number: hit.number, node_id: hit.node_id, html_url: hit.html_url, created: false };
-
-  // Create
-  const created = await octokit.rest.issues.create({ owner, repo, title: fmTitle, body });
-  // Write back issue number into the md file immediately
-  const raw = fs.readFileSync(filePath, "utf8");
-  const parsed = matter(raw);
-  parsed.data.issue = created.data.number;  
-  fs.writeFileSync(filePath, matter.stringify(parsed.content, parsed.data));
-  return { number: created.data.number, node_id: created.data.node_id, html_url: created.data.html_url, created: true };
-}
-
-async function upsertComment({ owner, repo, issue_number, header, body }) {
-  if (!mdToBool(body)) return;
-  const { data: comments } = await octokit.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
-  const marker = `**${header}**`;
-  const existing = comments.find(c => (c.body || "").startsWith(marker));
-  const newBody = `${marker}\n\n${body.trim()}`;
-  if (existing) {
-    await octokit.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body: newBody });
-  } else {
-    await octokit.rest.issues.createComment({ owner, repo, issue_number, body: newBody });
-  }
-}
-
-// ---- NEW: Move a task file into a subfolder named after its Status ----
-function moveFileToStatusFolder(currentPath, statusValue) {
-  if (!statusValue) return currentPath;               // no status → leave as-is
-  const safeStatus = String(statusValue).trim().replace(/[/\\]+/g, "_"); // avoid slashes
-  const targetDir = path.join(TASKS_DIR, safeStatus);
-  if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
-
-  const targetPath = path.join(targetDir, path.basename(currentPath));
-  if (currentPath === targetPath) return currentPath; // already in the right place
-
-  // Move the file on disk (rename handles moves)
-  if (fs.existsSync(currentPath)) {
-    fs.renameSync(currentPath, targetPath);
-  }
-  return targetPath;
-}
-
-function extractIssueNumber(ref, owner, repo) {
-  if (!ref) return null;
-  const s = String(ref).trim();
-  if (/^#\d+$/.test(s)) return Number(s.slice(1));
-  const m = s.match(/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)/i);
-  if (m && (m[1].toLowerCase() === owner.toLowerCase()) && (m[2].toLowerCase() === repo.toLowerCase()))
-    return Number(m[3]);
-  return null;
-}
-
-// replace the non-recursive read with this:
-function walkMdFiles(dir) {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    const files = [];
-    for (const e of entries) {
-        const full = path.join(dir, e.name);
-        if (e.isDirectory()) {
-            files.push(...walkMdFiles(full));
-        } else if (e.isFile() && e.name.toLowerCase().endsWith(".md")) {
-            files.push(full);
+            return { fieldByName, statusField, statusOptionsByName };
         }
+
+        /** Ensure issue exists; if not, create; return {number, id} */
+        async function ensureIssue({ title, body, existingNumber }) {
+            if (existingNumber) {
+                // Get node id for existing issue
+                const { data } = await octokit.rest.issues.get({
+                    owner: REPO_OWNER,
+                    repo: REPO_NAME,
+                    issue_number: Number(existingNumber),
+                });
+                return { number: data.number, id: data.node_id, html_url: data.html_url };
+            }
+            const { data } = await octokit.rest.issues.create({
+                owner: REPO_OWNER,
+                repo: REPO_NAME,
+                title,
+                body,
+            });
+            return { number: data.number, id: data.node_id, html_url: data.html_url };
+        }
+
+        /** Add issue (contentId) to Project v2; returns itemId (project item) */
+        async function addToProject({ projectId, contentId }) {
+            const m = `
+        mutation($projectId:ID!, $contentId:ID!) {
+          addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}) {
+            item { id }
+          }
+        }
+      `;
+            const r = await octokit.graphql(m, { projectId, contentId });
+            return r?.addProjectV2ItemById?.item?.id;
+        }
+
+        /** Set single-select status on item */
+        async function setStatus({ projectId, itemId, statusField, statusOptionsByName, statusName }) {
+            const target = statusOptionsByName.get((statusName || "").toLowerCase());
+            if (!target) {
+                core.warning(
+                    `Status "${statusName}" not found in project options; skipping status set`
+                );
+                return;
+            }
+            const m = `
+        mutation($projectId:ID!, $itemId:ID!, $fieldId:ID!, $optionId:String!) {
+          updateProjectV2ItemFieldValue(input:{
+            projectId:$projectId,
+            itemId:$itemId,
+            fieldId:$fieldId,
+            value:{ singleSelectOptionId:$optionId }
+          }) { projectV2Item { id } }
+        }
+      `;
+            await octokit.graphql(m, {
+                projectId,
+                itemId,
+                fieldId: statusField.id,
+                optionId: target.id,
+            });
+        }
+
+        /** Optional: post a comment to the GitHub Issue */
+        async function postIssueComment(issueNumber, body) {
+            if (!body || !String(body).trim()) return;
+            await octokit.rest.issues.createComment({
+                owner: REPO_OWNER,
+                repo: REPO_NAME,
+                issue_number: Number(issueNumber),
+                body,
+            });
+        }
+
+        /** Extract a section by header from markdown content (ATX style) */
+        function extractSection(content, headerText) {
+            // Match '## Header', '### Header', etc., until next header or end
+            const esc = headerText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const re = new RegExp(
+                `^#{1,6}\\s*${esc}\\s*\\n([\\s\\S]*?)(?=^#{1,6}\\s|\\Z)`,
+                "im"
+            );
+            const m = content.match(re);
+            return m ? m[1].trim() : "";
+        }
+
+        // --- PREP: Project + fields ---------------------------------------------
+        const repoNode = await getRepoNode();
+        const projectNode = await getProjectNode();
+        const { statusField, statusOptionsByName } = await getProjectFields(
+            projectNode.id
+        );
+
+        // --- PROCESS FILES -------------------------------------------------------
+        if (!fs.existsSync(tasksDirAbs)) {
+            core.info(`Tasks directory "${tasksDirAbs}" does not exist. Nothing to do.`);
+            return;
+        }
+
+        const mdFilesAbs = walkMdAbs(tasksDirAbs);
+        if (!mdFilesAbs.length) {
+            core.info(`No markdown files found under ${tasksDirAbs}`);
+            return;
+        }
+
+        core.info(`Found ${mdFilesAbs.length} markdown file(s)`);
+
+        for (const fileAbs of mdFilesAbs) {
+            core.startGroup(`Processing: ${path.relative(process.cwd(), fileAbs)}`);
+            try {
+                const { data, content } = readMd(fileAbs);
+
+                // Title: frontmatter title | filename (without extension)
+                const title =
+                    data.title ||
+                    data.Name ||
+                    path.basename(fileAbs).replace(/\.md$/i, "");
+
+                // Optional body from content (excluding frontmatter)
+                const body = content && content.trim() ? content : undefined;
+
+                // Status from frontmatter
+                const status =
+                    (data.Status || data.status || "Backlog").toString().trim();
+
+                // If you have a section to post as comment:
+                const notes = extractSection(content || "", COMMENT_HEADER);
+
+                // Existing issue number?
+                const existingIssueNum =
+                    data.issue ||
+                    data.issue_number ||
+                    data.Issue ||
+                    data.IssueNumber ||
+                    null;
+
+                // Ensure Issue exists (create if needed)
+                const issue = await ensureIssue({
+                    title,
+                    body,
+                    existingNumber: existingIssueNum,
+                });
+
+                // Write back the issue number if it was missing
+                if (!existingIssueNum) {
+                    data.issue = issue.number; // normalize to 'issue'
+                    writeMd(fileAbs, data, content || "");
+                    core.info(`Wrote issue number ${issue.number} back to frontmatter`);
+                }
+
+                // Add to Project v2 (safe if already present)
+                const itemId = await addToProject({
+                    projectId: projectNode.id,
+                    contentId: issue.id,
+                });
+                if (itemId) {
+                    core.info(`Added to project ${PROJECT_NUMBER} (item ${itemId})`);
+                    await setStatus({
+                        projectId: projectNode.id,
+                        itemId,
+                        statusField,
+                        statusOptionsByName,
+                        statusName: status,
+                    });
+                } else {
+                    core.warning("Could not add to project (item id empty)");
+                }
+
+                // Post notes as issue comment (optional)
+                if (notes) {
+                    await postIssueComment(issue.number, notes);
+                    core.info(`Posted "${COMMENT_HEADER}" as issue comment`);
+                }
+
+                // Move file into Tasks/<Status>/filename.md
+                //  - Keep filename
+                //  - Preserve subfolder structure *beneath* status? (simple version: flatten by filename)
+                //  - If you want to preserve relative subpath, compute from base
+                const relativeFromBase = path.relative(tasksDirAbs, fileAbs);
+                const fileName = path.basename(relativeFromBase);
+                const safeStatus = status.replace(/[\\/]+/g, "-").trim() || "Backlog";
+                const destDirAbs = path.join(tasksDirAbs, safeStatus);
+                const destAbs = path.join(destDirAbs, fileName);
+
+                const afterMoveAbs = moveIfNeeded(fileAbs, destAbs);
+                core.info(`Located at: ${path.relative(process.cwd(), afterMoveAbs)}`);
+            } catch (err) {
+                core.warning(`Failed to process ${fileAbs}: ${err.message}`);
+            } finally {
+                core.endGroup();
+            }
+        }
+
+        // --- COMMIT CHANGES (frontmatter writes / moves) -------------------------
+        if (fs.existsSync(".git")) {
+            const { execSync } = require("child_process");
+            try {
+                const status = execSync("git status --porcelain").toString().trim();
+                if (status) {
+                    execSync('git config user.name "github-actions[bot]"');
+                    execSync(
+                        'git config user.email "41898282+github-actions[bot]@users.noreply.github.com"'
+                    );
+                    execSync("git add -A");
+                    execSync('git commit -m "chore(kanban): sync issues & move files"');
+                    execSync("git push");
+                    core.info("Changes committed and pushed.");
+                } else {
+                    core.info("No changes to commit.");
+                }
+            } catch (e) {
+                core.warning(`Commit skipped: ${e.message}`);
+            }
+        }
+    } catch (err) {
+        core.setFailed(err.message);
+        process.exit(1);
     }
-    return files;
-}
-
-// ---------- MAIN ----------
-
-(async () => {
-  const { owner, repo } = repoContext();
-  const tasksDir = path.join(process.cwd(), TASKS_DIR);
-  if (!fs.existsSync(tasksDir)) { console.log("No tasks dir"); return; }
-
-  const files = walkMdFiles(tasksDir);
-  if (!files.length) { console.log("No md files"); return; }
-
-  const project = await getProjectNode();
-  const { map: fieldMap } = await getProjectFields(project.id);
-  const statusField = fieldMap.get(STATUS_FIELD_NAME);
-
-  for (const file of files) {
-   let filePath = path.join(tasksDir, file);
-   const raw = fs.readFileSync(filePath, "utf8");
-   const { data, content } = matter(raw);
-
-// Ensure the file lives in a folder named after its Status (e.g., tasks/Backlog/)
-if (data.status) {
-  const relocated = moveFileToStatusFolder(filePath, data.status);
-  if (relocated !== filePath) {
-    console.log(`Moved ${path.relative(process.cwd(), filePath)} → ${path.relative(process.cwd(), relocated)} based on status "${data.status}"`);
-    filePath = relocated; // IMPORTANT: keep using the new path for all subsequent writes
-  }
-}
-
-    const title = (data.title || path.basename(file, ".md")).trim();
-    const body = (data.description || content || "").trim();
-
-    // Ensure issue exists (reusing data.issue if present)
-    const issue = await findOrCreateIssue({
-      owner, repo, filePath, fmTitle: title, body, existingIssue: data.issue
-    });
-    console.log(`${issue.created ? "Created" : "Using"} issue #${issue.number} — ${issue.html_url}`);
-
-    // Add to project
-    const itemId = await addIssueToProject(project.id, issue.node_id);
-
-    // Issue-side sync
-    const assignees = Array.isArray(data.assignees) ? data.assignees : [];
-    const labels = Array.isArray(data.labels) ? data.labels : [];
-    const milestoneTitle = (data.milestone || "").trim();
-    await setIssueBasics({ owner, repo, issueNumber: issue.number, assignees, labels, milestoneTitle });
-
-    // Relationships: record as a comment list with references (GitHub auto-links)
-    if (Array.isArray(data.relationships) && data.relationships.length) {
-      await upsertComment({
-        owner, repo, issue_number: issue.number,
-        header: RELATIONSHIP_HEADER,
-        body: data.relationships.map(String).join("\n")
-      });
-    }
-
-    // Comments (freeform notes)
-    if (mdToBool(data.comments)) {
-      await upsertComment({
-        owner, repo, issue_number: issue.number,
-        header: COMMENT_HEADER,
-        body: String(data.comments)
-      });
-    }
-
-    // Project fields
-    const desired = {
-      [STATUS_FIELD_NAME]: data.status,
-	  "Sprint":data.sprint,				// SINGLE_SELECT
-      "Priority": data.priority,        // SINGLE_SELECT
-      "Size": data.size,                // SINGLE_SELECT
-      "Estimate": data.estimate,        // NUMBER
-      "Dev Hours": data.devHours,       // NUMBER
-      "QA Hours": data.qaHours,         // NUMBER
-      "Planned Start": data.plannedStart, // DATE (YYYY-MM-DD)
-      "Planned End": data.plannedEnd,
-      "Actual Start": data.actualStart,
-      "Actual End": data.actualEnd
-    };
-
-    for (const [name, val] of Object.entries(desired)) {
-      const field = fieldMap.get(name);
-      if (field && mdToBool(val)) {
-        await setFieldValue({ projectId: project.id, itemId, field, value: val });
-        console.log(`Set field ${name} = ${val}`);
-      }
-    }
-  }
-
-  // Commit any frontmatter updates (e.g., issue number written back)
-  if (fs.existsSync(".git")) {
-    const { execSync } = require("child_process");
-    try {
-      if (execSync("git status --porcelain").toString().trim()) {
-        execSync('git config user.name "github-actions[bot]"');
-        execSync('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"');
-        execSync("git add -A");
-        execSync('git commit -m "Write back issue numbers to Markdown"');
-        execSync("git push");
-      }
-    } catch (e) { console.warn("Commit skipped:", e.message); }
-  }
-})().catch(err => core.setFailed(err.message));
+})();
