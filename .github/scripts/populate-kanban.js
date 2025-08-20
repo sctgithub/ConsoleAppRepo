@@ -206,14 +206,24 @@ const tasksDir = path.resolve(process.env.TASKS_DIR || "Tasks");
 // --- Recursive walker that RETURNS RELATIVE PATHS ---
 function walkMdFilesRel(dir) {
     const out = [];
+
+    // Check if directory exists
+    if (!fs.existsSync(dir)) {
+        console.log(`Directory "${dir}" does not exist`);
+        return out;
+    }
+
     const entries = fs.readdirSync(dir, { withFileTypes: true });
+
     for (const e of entries) {
+        console.log(e.name);
         const full = path.join(dir, e.name);
+
         if (e.isDirectory()) {
             out.push(...walkMdFilesRel(full));
         } else if (e.isFile() && e.name.toLowerCase().endsWith(".md")) {
-            // store as RELATIVE to tasksDir
-            out.push(path.relative(tasksDir, full));
+            // store as RELATIVE to TASKS_DIR
+            out.push(path.relative(TASKS_DIR, full));
         }
     }
     return out;
@@ -226,36 +236,11 @@ function walkMdFilesRel(dir) {
   const tasksDir = path.join(process.cwd(), TASKS_DIR);
   if (!fs.existsSync(tasksDir)) { console.log("No tasks dir"); return; }
 
-    // Use the walker
-    const relFiles = walkMdFilesRel(tasksDir);
-
-    // Process each file
-    for (const rel of relFiles) {
-        // Always resolve to ABSOLUTE before I/O
-        const srcAbs = path.resolve(tasksDir, rel);
-
-        const raw = fs.readFileSync(srcAbs, "utf8");
-        const { data, content } = matter(raw);
-
-        // ... your logic to compute status, possibly rename/move file
-
-        const status = (data.Status || "Backlog").toString().trim();
-        const safeStatus = status.replace(/[\\/]+/g, "-"); // avoid accidental subdirs
-
-        // Ensure dest dir exists
-        const destDir = path.join(tasksDir, safeStatus);
-        fs.mkdirSync(destDir, { recursive: true });
-
-        // Keep same filename
-        const destAbs = path.join(destDir, path.basename(srcAbs));
-
-        // If you need to move:
-        if (srcAbs !== destAbs) {
-            fs.renameSync(srcAbs, destAbs);
-        }
-
-        // If you write back to the same file, always use destAbs (the new spot)
-        // fs.writeFileSync(destAbs, updatedContent, "utf8");
+    const files = walkMdFilesRel(TASKS_DIR);
+    if (!files.length) {
+        console.log("No md files");
+    } else {
+        console.log("Found markdown files:", files);
     }
 
   const project = await getProjectNode();
