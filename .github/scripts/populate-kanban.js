@@ -215,7 +215,8 @@ function walkMdFilesRel(dir) {
 
     const entries = fs.readdirSync(dir, { withFileTypes: true });
 
-    for (const e of entries) {
+    for (const e of entries) {        
+        console.log(e.name);
         const full = path.join(dir, e.name);
 
         if (e.isDirectory()) {
@@ -238,9 +239,7 @@ function walkMdFilesRel(dir) {
     const files = walkMdFilesRel(TASKS_DIR);
     if (!files.length) {
         console.log("No md files");
-    } else {
-        console.log("Found markdown files:", files);
-    }
+    } 
 
   const project = await getProjectNode();
   const { map: fieldMap } = await getProjectFields(project.id);
