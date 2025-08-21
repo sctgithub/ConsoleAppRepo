@@ -2,7 +2,7 @@
 title: 3rd Tasks
 description: This is my 3rd card
 issue: 19
-status: Backlog
+status: In review
 size: S
 estimate: 8
 devHours: 5

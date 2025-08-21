@@ -2,7 +2,7 @@
 title: 2nd Tasks
 description: This is my 2nd card
 issue: 18
-status: Backlog
+status: In progress
 size: S
 estimate: 15
 devHours: 5

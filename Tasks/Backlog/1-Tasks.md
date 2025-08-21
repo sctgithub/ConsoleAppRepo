@@ -2,7 +2,7 @@
 title: 1st Tasks
 description: This is my  1st card
 issue: 17
-status: Backlog
+status: Ready
 size: S
 estimate: 20
 devHours: 12
