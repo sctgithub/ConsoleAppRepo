@@ -17,10 +17,18 @@ labels:
   - enhancement
 priority: High
 sprint: Sprint 2
-relationships: null
+relationships: 
+- "#2"
+subIssues:
+  - title: Sub-task 1
+    description: Description of sub-task 1
+    labels: ["bug", "priority-high"]
+  - title: Sub-task 2
+    description: Description of sub-task 2
 comments: |
-  - Comment 1
-  - Comment 2
-  - [2025-08-21] sctgithub : new comment
+  - Comment 1+++++++
+  - Comment 2++++
+  - [2025-08-21] sctgithub : new comment6+++++
+  - new comment
 ---
 
