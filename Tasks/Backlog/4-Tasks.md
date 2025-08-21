@@ -15,6 +15,7 @@ assignees:
   - sctgithub
 labels:
   - enhancement
+  - bug
 priority: High
 sprint: Sprint 2
 relationships:
