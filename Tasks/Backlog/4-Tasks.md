@@ -36,9 +36,8 @@ subIssues:
         - sctgithub
     labels:
          - bug
-         - enhancement
-priority: High
-sprint: Sprint 1
+    priority: Low
+    sprint: Sprint 1
   - title: Sub-task 2
     description: Description of sub-task 2
     issue: 56
