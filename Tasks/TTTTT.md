@@ -20,8 +20,8 @@ labels:                        # Array of GitHub labels
   - "bug"
 milestone: "v1.0"              # Must match existing milestone
 comments: |                    # Multi-line comments
-  This task requires coordination with the frontend team.
-  User can log in with email/password
+  - This task requires coordination with the frontend team.
+  - User can log in with email/password
 
   Dependencies:
   - Database schema updates
