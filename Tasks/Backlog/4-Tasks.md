@@ -18,11 +18,11 @@ labels:
 priority: High
 sprint: Sprint 2
 relationships:
-  - #2
+  - null
 subIssues:
   - title: Sub-task 1
     description: Description of sub-task 1
-    issue: 55
+    issue: 23
     status: Backlog
     size: S
     estimate: 11
@@ -33,14 +33,14 @@ subIssues:
     actualStart: '2025-09-28'
     actualEnd: '2025-09-29'
     assignees:
-        - sctgithub
+      - sctgithub
     labels:
-         - bug
+      - bug
     priority: Low
     sprint: Sprint 1
   - title: Sub-task 2
     description: Description of sub-task 2
-    issue: 56
+    issue: 24
     status: Backlog
     size: L
     estimate: 25
@@ -51,9 +51,9 @@ subIssues:
     actualStart: '2025-09-28'
     actualEnd: '2025-09-29'
     assignees:
-        - sctgithub
+      - sctgithub
     labels:
-        - bug
+      - bug
     priority: High
     sprint: Sprint 1
 comments: |
@@ -62,3 +62,4 @@ comments: |
   - [2025-08-21] sctgithub : new comment6+++++
   - new comment
 ---
+
