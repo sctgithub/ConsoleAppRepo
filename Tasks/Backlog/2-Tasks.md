@@ -1,7 +1,7 @@
-﻿---
+---
 title: 2nd Tasks
 description: This is my 2nd card
-issue: 2
+issue: 18
 status: Backlog
 size: S
 estimate: 15
@@ -17,7 +17,8 @@ labels:
   - bug
 priority: Critical
 sprint: Sprint 1
-relationships: #1
-comments: >
+relationships: null
+comments: |
   - Comment 1
 ---
+
