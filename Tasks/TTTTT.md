@@ -19,7 +19,6 @@ labels:
 priority: High
 sprint: Sprint 2
 relationships:
-  - #18
 comments: |
   - Comment 1+++++++
 ---
