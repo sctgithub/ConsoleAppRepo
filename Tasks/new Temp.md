@@ -6,7 +6,7 @@ status: "In Progress"          # Must match project Status options
 priority: "High"               # Must match project Priority options
 size: "L"	                   # Must match project Size options
 sprint: "Sprint 1"             # Must match project Sprint options
-estimate: 8                    # Number (hours/points)
+estimate: 12                   # Number (hours/points)
 devHours: 6                    # Number
 qaHours: 2                     # Number
 plannedStart: "2025-01-15"     # YYYY-MM-DD format
