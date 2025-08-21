@@ -18,7 +18,7 @@ labels:
 priority: High
 sprint: Sprint 2
 relationships: 
-- "#2"
+- #2
 subIssues:
   - title: Sub-task 1
     description: Description of sub-task 1
