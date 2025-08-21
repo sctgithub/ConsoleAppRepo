@@ -17,14 +17,18 @@ labels:
   - enhancement
 priority: High
 sprint: Sprint 2
-relationships: 
-- "#2"
+relationships:
+  - '#2'
 subIssues:
   - title: Sub-task 1
     description: Description of sub-task 1
-    labels: ["bug", "priority-high"]
+    labels:
+      - bug
+      - priority-high
+    issue: 21
   - title: Sub-task 2
     description: Description of sub-task 2
+    issue: 22
 comments: |
   - Comment 1+++++++
   - Comment 2++++
