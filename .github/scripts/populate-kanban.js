@@ -152,66 +152,66 @@ async function updateIssueContent({ owner, repo, issueNumber, title, body }) {
     }
 }
 
-// NEW: Function to create sub-issues and link them
-async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, filePath }) {
-    if (!Array.isArray(subIssues) || !subIssues.length) return [];
+//// NEW: Function to create sub-issues and link them
+//async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, filePath }) {
+//    if (!Array.isArray(subIssues) || !subIssues.length) return [];
 
-    const createdSubIssues = [];
+//    const createdSubIssues = [];
 
-    for (const subIssue of subIssues) {
-        try {
-            // Create the sub-issue
-            const created = await octokit.rest.issues.create({
-                owner,
-                repo,
-                title: subIssue.title || "Sub-task",
-                body: `${subIssue.description || ""}\n\nParent issue: #${parentIssueNumber}`
-            });
+//    for (const subIssue of subIssues) {
+//        try {
+//            // Create the sub-issue
+//            const created = await octokit.rest.issues.create({
+//                owner,
+//                repo,
+//                title: subIssue.title || "Sub-task",
+//                body: `${subIssue.description || ""}\n\nParent issue: #${parentIssueNumber}`
+//            });
 
-            createdSubIssues.push({
-                number: created.data.number,
-                title: created.data.title,
-                url: created.data.html_url
-            });
+//            createdSubIssues.push({
+//                number: created.data.number,
+//                title: created.data.title,
+//                url: created.data.html_url
+//            });
 
-            // Add labels if specified
-            if (subIssue.labels && Array.isArray(subIssue.labels)) {
-                await ensureLabels({ owner, repo, labels: subIssue.labels });
-                await octokit.rest.issues.update({
-                    owner,
-                    repo,
-                    issue_number: created.data.number,
-                    labels: subIssue.labels
-                });
-            }
+//            // Add labels if specified
+//            if (subIssue.labels && Array.isArray(subIssue.labels)) {
+//                await ensureLabels({ owner, repo, labels: subIssue.labels });
+//                await octokit.rest.issues.update({
+//                    owner,
+//                    repo,
+//                    issue_number: created.data.number,
+//                    labels: subIssue.labels
+//                });
+//            }
 
-            console.log(`Created sub-issue #${created.data.number} for parent #${parentIssueNumber}`);
-        } catch (error) {
-            console.warn(`Failed to create sub-issue for #${parentIssueNumber}:`, error.message);
-        }
-    }
+//            console.log(`Created sub-issue #${created.data.number} for parent #${parentIssueNumber}`);
+//        } catch (error) {
+//            console.warn(`Failed to create sub-issue for #${parentIssueNumber}:`, error.message);
+//        }
+//    }
 
-    // Update the markdown file with the created sub-issue numbers
-    if (createdSubIssues.length > 0) {
-        const raw = fs.readFileSync(filePath, "utf8");
-        const parsed = matter(raw);
+//    // Update the markdown file with the created sub-issue numbers
+//    if (createdSubIssues.length > 0) {
+//        const raw = fs.readFileSync(filePath, "utf8");
+//        const parsed = matter(raw);
 
-        // Add sub-issue numbers to frontmatter
-        parsed.data.subIssues = parsed.data.subIssues.map((subIssue, index) => {
-            if (createdSubIssues[index]) {
-                return {
-                    ...subIssue,
-                    issue: createdSubIssues[index].number
-                };
-            }
-            return subIssue;
-        });
+//        // Add sub-issue numbers to frontmatter
+//        parsed.data.subIssues = parsed.data.subIssues.map((subIssue, index) => {
+//            if (createdSubIssues[index]) {
+//                return {
+//                    ...subIssue,
+//                    issue: createdSubIssues[index].number
+//                };
+//            }
+//            return subIssue;
+//        });
 
-        fs.writeFileSync(filePath, matter.stringify(parsed.content, parsed.data));
-    }
+//        fs.writeFileSync(filePath, matter.stringify(parsed.content, parsed.data));
+//    }
 
-    return createdSubIssues;
-}
+//    return createdSubIssues;
+//}
 
 async function findOrCreateIssue({ owner, repo, filePath, fmTitle, body, existingIssue }) {
     if (existingIssue) {
@@ -387,29 +387,29 @@ function walkMdFilesRel(dir) {
         const milestoneTitle = (data.milestone || "").trim();
         await setIssueBasics({ owner, repo, issueNumber: issue.number, assignees, labels, milestoneTitle });
 
-        // Handle sub-issues
-        if (Array.isArray(data.subIssues) && data.subIssues.length) {
-            const createdSubIssues = await createSubIssues({
-                owner,
-                repo,
-                parentIssueNumber: issue.number,
-                subIssues: data.subIssues,
-                filePath
-            });
+        //// Handle sub-issues
+        //if (Array.isArray(data.subIssues) && data.subIssues.length) {
+        //    const createdSubIssues = await createSubIssues({
+        //        owner,
+        //        repo,
+        //        parentIssueNumber: issue.number,
+        //        subIssues: data.subIssues,
+        //        filePath
+        //    });
 
-            // Add sub-issue references to relationships comment
-            if (createdSubIssues.length > 0) {
-                const subIssueRefs = createdSubIssues.map(sub => `#${sub.number}`);
-                const existingRels = Array.isArray(data.relationships) ? data.relationships : [];
-                const allRels = [...existingRels, ...subIssueRefs];
+        //    // Add sub-issue references to relationships comment
+        //    if (createdSubIssues.length > 0) {
+        //        const subIssueRefs = createdSubIssues.map(sub => `#${sub.number}`);
+        //        const existingRels = Array.isArray(data.relationships) ? data.relationships : [];
+        //        const allRels = [...existingRels, ...subIssueRefs];
 
-                await upsertComment({
-                    owner, repo, issue_number: issue.number,
-                    header: RELATIONSHIP_HEADER,
-                    body: allRels.map(String).join("\n")
-                });
-            }
-        }
+        //        await upsertComment({
+        //            owner, repo, issue_number: issue.number,
+        //            header: RELATIONSHIP_HEADER,
+        //            body: allRels.map(String).join("\n")
+        //        });
+        //    }
+        //}
 
         // Relationships: record as a comment list with references (GitHub auto-links)
         if (Array.isArray(data.relationships) && data.relationships.length) {

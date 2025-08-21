@@ -18,44 +18,7 @@ labels:
 priority: High
 sprint: Sprint 2
 relationships:
-  - #2
-subIssues:
-  - title: Sub-task 1
-    description: Description of sub-task 1
-    issue: 55
-    status: Backlog
-    size: S
-    estimate: 11
-    devHours: 8
-    qaHours: 3
-    plannedStart: '2025-09-05'
-    plannedEnd: '2025-09-27'
-    actualStart: '2025-09-28'
-    actualEnd: '2025-09-29'
-    assignees:
-        - sctgithub
-    labels:
-         - bug
-    priority: Low
-    sprint: Sprint 1
-  - title: Sub-task 2
-    description: Description of sub-task 2
-    issue: 56
-    status: Backlog
-    size: L
-    estimate: 25
-    devHours: 20
-    qaHours: 5
-    plannedStart: '2025-09-05'
-    plannedEnd: '2025-09-27'
-    actualStart: '2025-09-28'
-    actualEnd: '2025-09-29'
-    assignees:
-        - sctgithub
-    labels:
-        - bug
-    priority: High
-    sprint: Sprint 1
+  - #18
 comments: |
   - Comment 1+++++++
   - Comment 2++++
