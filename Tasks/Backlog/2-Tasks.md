@@ -4,9 +4,9 @@ description: This is my 2nd card
 issue: 2
 status: Backlog
 size: S
-estimate: 20
-devHours: 12
-qaHours: 4
+estimate: 15
+devHours: 5
+qaHours: 3
 plannedStart: '2025-09-01'
 plannedEnd: '2025-09-10'
 actualStart: null
