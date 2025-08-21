@@ -1,31 +1,25 @@
 ﻿---
-title: "ITTTTTTTT"
-description: "Add login/logout functionality with JWT tokens"
-issue: 101
-status: "In Progress"          # Must match project Status options
-priority: "High"               # Must match project Priority options
-size: "L"	                   # Must match project Size options
-sprint: "Sprint 1"             # Must match project Sprint options
-estimate: 12                   # Number (hours/points)
-devHours: 6                    # Number
-qaHours: 2                     # Number
-plannedStart: "2025-01-15"     # YYYY-MM-DD format
-plannedEnd: "2025-01-22"       # YYYY-MM-DD format
-actualStart: '2025-09-23'	   # YYYY-MM-DD format
-actualEnd: '2025-09-27'		   # YYYY-MM-DD format
-assignees:                     # Array of GitHub usernames
-  - "sctgithub"
-labels:                        # Array of GitHub labels
-  - "enhancement"
-  - "bug"
-milestone: "v1.0"              # Must match existing milestone
-comments: |                    # Multi-line comments
-  - This task requires coordination with the frontend team.
-  - User can log in with email/password
-
-  Dependencies:
-  - Database schema updates
-  - Security review
-relationships:                 # Array of issue references
-  - "#20"                      # Related issue
+title: yyyyyyyyyyyy
+description: yyyy
+issue: 20
+status: Backlog
+size: M
+estimate: 10
+devHours: 9
+qaHours: 1
+plannedStart: '2025-09-02'
+plannedEnd: '2025-09-22'
+actualStart: '2025-09-23'
+actualEnd: '2025-09-27'
+assignees:
+  - sctgithub
+labels:
+  - enhancement
+  - bug
+priority: High
+sprint: Sprint 2
+relationships:
+  - #18
+comments: |
+  - Comment 1+++++++
 ---
