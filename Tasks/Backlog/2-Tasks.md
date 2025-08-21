@@ -1,0 +1,23 @@
+﻿---
+title: 2nd Tasks
+description: This is my 2nd card
+issue: 2
+status: Backlog
+size: S
+estimate: 20
+devHours: 12
+qaHours: 4
+plannedStart: '2025-09-01'
+plannedEnd: '2025-09-10'
+actualStart: null
+actualEnd: null
+assignees:
+  - sctgithub
+labels:
+  - bug
+priority: Critical
+sprint: Sprint 1
+relationships: #1
+comments: >
+  - Attached image is a guide of how the flashing thumbnails need to look like.
+---
