@@ -29,13 +29,3 @@ comments: |                    # Multi-line comments
 relationships:                 # Array of issue references
   - "#20"                      # Related issue
 ---
-
-## Task Details
-
-Detailed description of the task goes here. This will become the issue body.
-
-### Acceptance Criteria
-
-- [ ] User can log in with email/password
-- [ ] JWT tokens are properly validated
-- [ ] Session management works correctly
