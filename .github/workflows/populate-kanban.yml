@@ -1,0 +1,45 @@
+name: Populate Kanban from Markdown
+
+on:
+  push:
+    paths:
+      - "Tasks/**/*.md"
+
+permissions:
+  contents: write     # we write back issue number into the file
+  issues: write
+  pull-requests: write
+
+jobs:
+  create-cards:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify PROJECTS_TOKEN
+        run: |
+          if [ -z "${{ secrets.PROJECTS_TOKEN }}" ]; then
+            echo "::error::Missing PROJECTS_TOKEN secret"
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4   
+        with:
+          node-version: '18'
+
+      - name: Install deps
+        run: npm install gray-matter @actions/github @actions/core
+
+      - name: Populate Project from Markdown
+        env:
+          PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+          OWNER: sctgithub              # org or username that owns the Project v2
+          PROJECT_NUMBER: 8             # project number from UI
+          STATUS_FIELD_NAME: Status     # single-select field driving board columns
+          TASKS_DIR: Tasks
+          RELATIONSHIP_HEADER: "Relationships"
+          COMMENT_HEADER: "Automated Notes"
+        run: node .github/scripts/populate-kanban.js
