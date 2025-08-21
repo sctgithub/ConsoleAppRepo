@@ -19,5 +19,5 @@ priority: Critical
 sprint: Sprint 2
 relationships: null
 comments: >
-  - Implement the user login feature with email and password authentication, including validation
+  - Comment 1
 ---

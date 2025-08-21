@@ -19,5 +19,5 @@ priority: Critical
 sprint: Sprint 1
 relationships: #1
 comments: >
-  - Attached image is a guide of how the flashing thumbnails need to look like.
+  - Comment 1
 ---
