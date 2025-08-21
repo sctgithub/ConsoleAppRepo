@@ -1,7 +1,7 @@
-﻿---
+---
 title: 3rd Tasks
 description: This is my 3rd card
-issue: 3
+issue: 19
 status: Backlog
 size: S
 estimate: 8
@@ -17,7 +17,8 @@ labels:
   - bug
 priority: Critical
 sprint: Sprint 1
-relationships: #1
-comments: >
+relationships: null
+comments: |
   - Comment 1
 ---
+
