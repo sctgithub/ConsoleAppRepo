@@ -21,9 +21,7 @@ labels:                        # Array of GitHub labels
 milestone: "v1.0"              # Must match existing milestone
 comments: |                    # Multi-line comments
   This task requires coordination with the frontend team.
-  - [ ] User can log in with email/password
-- [ ] JWT tokens are properly validated
-- [ ] Session management works correctly
+  User can log in with email/password
 
   Dependencies:
   - Database schema updates
