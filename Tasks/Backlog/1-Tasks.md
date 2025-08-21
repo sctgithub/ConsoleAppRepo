@@ -1,7 +1,7 @@
-﻿---
+---
 title: 1st Tasks
 description: This is my  1st card
-issue: 1
+issue: 17
 status: Backlog
 size: S
 estimate: 20
@@ -18,6 +18,7 @@ labels:
 priority: Critical
 sprint: Sprint 2
 relationships: null
-comments: >
+comments: |
   - Comment 1
 ---
+
