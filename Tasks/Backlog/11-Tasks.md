@@ -20,9 +20,7 @@ sprint: Sprint 2
 relationships:
   - null
 comments:
-  - eeeeeeeeeee
-  - Screenshot:
-      - 'IMAGE:Images/screenshot.png'
+   - "Screenshot: [IMAGE:Images/screenshot.png]"
 commentHistory:
   - '[2025-08-22][sctgithub] eeeeeeeeeee'
   - '[2025-08-22][sctgithub] [object Object]'
