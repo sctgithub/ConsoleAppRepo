@@ -20,7 +20,7 @@ sprint: Sprint 2
 relationships:
   - null
 comments:
-  - "Screenshot:[IMAGE:C:/Personal/ConsoleApp/Tasks/Images/Screenshot1.png]
+  - Screenshot:[IMAGE:C:/Personal/ConsoleApp/Tasks/Images/Screenshot1.png]
 commentHistory: []
 ---
 
