@@ -1,7 +1,7 @@
 ---
 title: 11 Tasks
 description: This is my 11 card
-issue: 258
+issue: 45
 status: Backlog
 size: L
 estimate: 88
@@ -21,7 +21,10 @@ relationships:
   - null
 comments:
   - eeeeeeeeeee
-  - Screenshot: [IMAGE:Images/screenshot.png]
-commentHistory: []
+  - Screenshot:
+      - 'IMAGE:Images/screenshot.png'
+commentHistory:
+  - '[2025-08-22][sctgithub] eeeeeeeeeee'
+  - '[2025-08-22][sctgithub] [object Object]'
 ---
 
