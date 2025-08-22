@@ -20,8 +20,7 @@ sprint: Sprint 2
 relationships:
   - null
 comments:
-  - Initial task setup complete
-  - 'Screenshot:''IMAGE:Images/screenshot.png'''
+   - "Screenshot new: [IMAGE:../Images/Screenshot1.png]"
 commentHistory:
   - '[2025-08-22][sctgithub] Initial task setup complete'
   - '[2025-08-22][sctgithub] Screenshot:''IMAGE:Images/screenshot.png'''
