@@ -20,6 +20,7 @@ sprint: Sprint 1
 relationships: null
 comments:
   - Initial task setup complete
-commentHistory: []
+commentHistory:
+  - '[2025-08-22][sctgithub] Initial task setup complete'
 ---
 
