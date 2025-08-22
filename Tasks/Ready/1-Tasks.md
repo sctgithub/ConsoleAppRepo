@@ -18,7 +18,6 @@ labels:
 priority: Critical
 sprint: Sprint 2
 relationships: 
-relationships: 
 comments: |
   - Comment 1
 ---
