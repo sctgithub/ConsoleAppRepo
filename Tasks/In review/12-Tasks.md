@@ -20,10 +20,7 @@ sprint: Sprint 2
 relationships:
   - null
 comments:
-  - 'Screenshot:[IMAGE:C:/Personal/ConsoleApp/Tasks/Images/Screenshot1.png]'
-commentHistory:
-  - >-
-    [2025-08-22][sctgithub]
-    Screenshot:[IMAGE:C:/Personal/ConsoleApp/Tasks/Images/Screenshot1.png]
+  - 2222222222222222222222222
+commentHistory: []
 ---
 
