@@ -20,11 +20,12 @@ sprint: Sprint 1
 relationships: null
 comments:
   - Initial task setup complete
-commentHistory: []
+commentHistory:
+  - '[2025-08-22][sctgithub] Initial task setup complete'
 subIssues:
   - title: Sub-task 1
     description: Description of sub-task 1
-    issue: 55
+    issue: 37
     status: Backlog
     size: S
     estimate: 11
@@ -35,14 +36,14 @@ subIssues:
     actualStart: '2025-09-28'
     actualEnd: '2025-09-29'
     assignees:
-        - sctgithub
+      - sctgithub
     labels:
-         - bug
+      - bug
     priority: Low
     sprint: Sprint 1
     relationships: null
     comments:
-     - subb complete
+      - subb complete
     commentHistory: []
 ---
 
