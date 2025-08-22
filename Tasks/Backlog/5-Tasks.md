@@ -1,7 +1,7 @@
-﻿---
+---
 title: 5th Tasksss
 description: This is my 5th card
-issue: 40
+issue: 39
 status: Backlog
 size: L
 estimate: 11
@@ -19,12 +19,14 @@ priority: Medium
 sprint: Sprint 2
 relationships: null
 comments:
-  - I see the issue! The current code creates sub-issues but doesn't sync their properties or move them to status folders. Let me modify the code to handle sub-issues properly:
-commentHistory: []
+  - I see the issue! The current code creates sub-issues but doesn't sync their properties or move them to status folders. Let me modify the code to handle sub-issues properly: null
+commentHistory:
+  - '[2025-08-22][sctgithub] subb complete'
+  - '[2025-08-22][sctgithub] [object Object]'
 subIssues:
   - title: Sub-task 10
     description: Description of sub-task 10
-    issue: 55
+    issue: 40
     status: Backlog
     size: S
     estimate: 10
