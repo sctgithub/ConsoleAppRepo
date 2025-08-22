@@ -17,12 +17,14 @@ labels:
   - bug
 priority: Critical
 sprint: Sprint 2
-relationships: 
-   - #36
+relationships:
+  - null
 comments:
   - Initial task setup complete
   - Screenshot:
       - 'IMAGE:Images/screenshot.png'
-commentHistory: []
+commentHistory:
+  - '[2025-08-22][sctgithub] Initial task setup complete'
+  - '[2025-08-22][sctgithub] [object Object]'
 ---
 
