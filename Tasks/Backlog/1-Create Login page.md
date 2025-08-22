@@ -29,5 +29,8 @@ commentHistory:
   - >-
     [2025-08-22][github-actions[bot]] If you pull changes that include updated
     commentHistory, the script will see those and won't repost existing comments
+  - >-
+    [2025-08-22][github-actions[bot]] If you pull changes that include updated
+    commentHistory, the script will see those and won't repost existing comments
 ---
 
