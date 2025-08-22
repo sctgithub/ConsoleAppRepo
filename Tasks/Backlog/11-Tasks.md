@@ -2,7 +2,7 @@
 title: 11 Tasks
 description: This is my 11 card
 issue: 45
-status: Backlog
+status: Ready
 size: L
 estimate: 88
 devHours: 80
@@ -20,7 +20,7 @@ sprint: Sprint 2
 relationships:
   - null
 comments:
-  - "Updated screenshot: [IMAGE:../Images/screenshot.png]"
+  - "Updated screenshot: [IMAGE:C:/Personal/ConsoleApp/Tasks/Images/screenshot.png]"
 commentHistory:
   - '[2025-08-22][sctgithub] eeeeeeeeeee'
   - '[2025-08-22][sctgithub] [object Object]'
