@@ -20,7 +20,8 @@ priority: Critical
 sprint: Sprint 1
 relationships: null
 comments:
-  - The issue is with the **commentHistory:[] format on line 24. YAML requires a space after the colon.** Let me fix the code to ensure proper YAML formatting:
-commentHistory: []
+  - 'The issue is with the **commentHistory:[] format on line 24. YAML requires a space after the colon.** Let me fix the code to ensure proper YAML formatting': null
+commentHistory:
+  - '[2025-08-22][github-actions[bot]] [object Object]'
 ---
 
