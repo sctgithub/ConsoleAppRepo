@@ -1,7 +1,7 @@
-﻿---
+---
 title: 8th Tasks
 description: This is my 8th card
-issue: 80
+issue: 42
 status: Backlog
 size: M
 estimate: 23
@@ -22,6 +22,8 @@ comments:
   - Initial task setup complete
   - Screenshot:
       - 'IMAGE:Images/screenshot.png'
-commentHistory: []
+commentHistory:
+  - '[2025-08-22][sctgithub] Initial task setup complete'
+  - '[2025-08-22][sctgithub] [object Object]'
 ---
 
