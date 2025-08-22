@@ -1,7 +1,7 @@
 ---
 title: 10th Tasks
 description: This is my 10th card
-issue: 100
+issue: 44
 status: Backlog
 size: L
 estimate: 88
@@ -17,11 +17,13 @@ labels:
   - bug
 priority: Critical
 sprint: Sprint 2
-relationships: 
-   - #36
+relationships:
+  - null
 comments:
   - Initial task setup complete
-  - Screenshot:'IMAGE:Images/screenshot.png'
-commentHistory: []
+  - 'Screenshot:''IMAGE:Images/screenshot.png'''
+commentHistory:
+  - '[2025-08-22][sctgithub] Initial task setup complete'
+  - '[2025-08-22][sctgithub] Screenshot:''IMAGE:Images/screenshot.png'''
 ---
 
