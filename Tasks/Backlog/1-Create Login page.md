@@ -1,7 +1,7 @@
-﻿---
+---
 title: Create Login page
 description: This is my 1st card
-issue: 28
+issue: 30
 status: Backlog
 size: S
 estimate: 20
@@ -19,7 +19,12 @@ priority: Critical
 sprint: Sprint 1
 relationships: null
 comments:
-  - If you pull changes that include updated commentHistory, the script will see those and won't repost existing comments
-commentHistory: []
+  - >-
+    If you pull changes that include updated commentHistory, the script will see
+    those and won't repost existing comments
+commentHistory:
+  - >-
+    [2025-08-22][github-actions[bot]] If you pull changes that include updated
+    commentHistory, the script will see those and won't repost existing comments
 ---
 
