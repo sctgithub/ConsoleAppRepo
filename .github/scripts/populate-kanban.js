@@ -233,7 +233,8 @@ async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, file
                     header: COMMENT_HEADER,
                     comments: subIssue.comments,
                     filePath: filePath, // We'll handle this differently for sub-issues
-                    frontmatter: subIssue // Pass the sub-issue data as frontmatter
+                    frontmatter: subIssue, // Pass the sub-issue data as frontmatter
+                    isSubIssue: true
                 });
             }
 
@@ -304,9 +305,116 @@ async function findOrCreateIssue({ owner, repo, filePath, fmTitle, body, existin
     return { number: created.data.number, node_id: created.data.node_id, html_url: created.data.html_url, created: true };
 }
 
-// NEW: Comment History System - Modified to handle sub-issues
+// Function to upload image to GitHub repository
+async function uploadImageToGitHub({ owner, repo, imagePath, commitMessage = "Add image for issue comment" }) {
+    try {
+        if (!fs.existsSync(imagePath)) {
+            console.warn(`Image file not found: ${imagePath}`);
+            return null;
+        }
+
+        const imageBuffer = fs.readFileSync(imagePath);
+        const imageBase64 = imageBuffer.toString('base64');
+        const fileName = path.basename(imagePath);
+        const timestamp = Date.now();
+        const repoPath = `images/uploads/${timestamp}-${fileName}`;
+
+        // Check if file already exists in repo
+        try {
+            await octokit.rest.repos.getContent({
+                owner,
+                repo,
+                path: repoPath
+            });
+            console.log(`Image already exists in repo: ${repoPath}`);
+            return `https://raw.githubusercontent.com/${owner}/${repo}/main/${repoPath}`;
+        } catch {
+            // File doesn't exist, proceed with upload
+        }
+
+        // Upload image to repository
+        await octokit.rest.repos.createOrUpdateFileContents({
+            owner,
+            repo,
+            path: repoPath,
+            message: commitMessage,
+            content: imageBase64
+        });
+
+        console.log(`Uploaded image to: ${repoPath}`);
+        // Return the raw GitHub URL for the image
+        return `https://raw.githubusercontent.com/${owner}/${repo}/main/${repoPath}`;
+    } catch (error) {
+        console.warn(`Failed to upload image ${imagePath}:`, error.message);
+        return null;
+    }
+}
+
+// Function to process comments and handle image uploads
+async function processCommentWithImages({ owner, repo, commentText, baseDir = "" }) {
+    // Look for image references in the format: [IMAGE:path/to/image.png]
+    const imageRegex = /\[IMAGE:(.*?)\]/g;
+    let processedComment = commentText;
+    const matches = [];
+    let match;
+
+    // Collect all image matches first
+    while ((match = imageRegex.exec(commentText)) !== null) {
+        matches.push({
+            fullMatch: match[0],
+            imagePath: match[1]
+        });
+    }
+
+    // Process each image
+    for (const imageMatch of matches) {
+        const imagePath = imageMatch.imagePath;
+        let fullImagePath;
+
+        // Handle relative paths
+        if (path.isAbsolute(imagePath)) {
+            fullImagePath = imagePath;
+        } else {
+            // Resolve relative to the baseDir (where the .md file is)
+            fullImagePath = path.resolve(baseDir, imagePath);
+        }
+
+        if (fs.existsSync(fullImagePath)) {
+            console.log(`Processing image: ${imagePath}`);
+            const imageUrl = await uploadImageToGitHub({
+                owner,
+                repo,
+                imagePath: fullImagePath,
+                commitMessage: `Add image for issue comment: ${path.basename(imagePath)}`
+            });
+
+            if (imageUrl) {
+                // Replace [IMAGE:path] with markdown image syntax
+                const imageName = path.basename(imagePath, path.extname(imagePath));
+                processedComment = processedComment.replace(
+                    imageMatch.fullMatch,
+                    `![${imageName}](${imageUrl})`
+                );
+                console.log(`Converted image reference: ${imagePath} → ${imageUrl}`);
+            } else {
+                console.warn(`Failed to upload image: ${imagePath}`);
+                // Leave the original reference if upload failed
+            }
+        } else {
+            console.warn(`Image not found: ${fullImagePath}`);
+            // Leave the original reference if file doesn't exist
+        }
+    }
+
+    return processedComment;
+}
+
+// Comment History System - Modified to handle sub-issues and images
 async function handleCommentsWithHistory({ owner, repo, issue_number, header, comments, filePath, frontmatter, isSubIssue = false }) {
     if (!Array.isArray(comments) || !comments.length) return false;
+
+    // Get the directory where the markdown file is located
+    const baseDir = path.dirname(filePath);
 
     // For sub-issues, we work directly with the frontmatter object instead of re-reading file
     let latestData;
@@ -347,10 +455,18 @@ async function handleCommentsWithHistory({ owner, repo, issue_number, header, co
 
     // Process each comment
     for (const comment of comments) {
-        const commentText = String(comment).trim();
+        let commentText = String(comment).trim();
         if (!commentText) continue;
 
-        // Create a simple hash for the comment
+        // Process images in the comment
+        const processedCommentText = await processCommentWithImages({
+            owner,
+            repo,
+            commentText,
+            baseDir
+        });
+
+        // Create a simple hash for the ORIGINAL comment (before image processing)
         const hash = Buffer.from(commentText).toString('base64').slice(0, 16);
 
         // Skip if already posted
@@ -360,26 +476,25 @@ async function handleCommentsWithHistory({ owner, repo, issue_number, header, co
         }
 
         try {
-            // Post the comment
+            // Post the processed comment (with converted image URLs)
             const timestamp = new Date().toISOString();
-            const body = commentText;
 
             await octokit.rest.issues.createComment({
                 owner,
                 repo,
                 issue_number,
-                body
+                body: processedCommentText
             });
 
-            // Track this comment as posted
+            // Track this comment as posted (store the PROCESSED version in history)
             const dateOnly = timestamp.split('T')[0]; // Extract YYYY-MM-DD
             const createdBy = github.context.actor || "github-actions[bot]"; // Use actual user who triggered the action
             // Escape special characters for YAML safety
-            const safeComment = commentText.replace(/"/g, '\\"').replace(/\n/g, '\\n');
+            const safeComment = processedCommentText.replace(/"/g, '\\"').replace(/\n/g, '\\n');
             commentHistory.push(`[${dateOnly}][${createdBy}] ${safeComment}`);
 
             hasNewComments = true;
-            console.log(`Posted new comment on issue #${issue_number}`);
+            console.log(`Posted new comment with images on issue #${issue_number}`);
         } catch (error) {
             console.warn(`Failed to post comment on issue #${issue_number}:`, error.message);
         }
@@ -636,7 +751,7 @@ function walkMdFilesRel(dir) {
             });
         }
 
-        // NEW: Handle comments with history system
+        // Handle comments with history system
         if (Array.isArray(data.comments) && data.comments.length) {
             await handleCommentsWithHistory({
                 owner, repo, issue_number: issue.number,
