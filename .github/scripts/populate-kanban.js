@@ -359,14 +359,15 @@ async function processCommentWithImages({ owner, repo, commentText, baseDir = ""
     let match;
 
     // Collect all image matches first
-    while ((match = imageRegex.exec(commentText)) !== null) {
+    const originalComment = commentText;
+    while ((match = imageRegex.exec(originalComment)) !== null) {
         matches.push({
             fullMatch: match[0],
-            imagePath: match[1]
+            imagePath: match[1].trim()
         });
     }
 
-    // Process each image
+    // Process each image sequentially
     for (const imageMatch of matches) {
         const imagePath = imageMatch.imagePath;
         let fullImagePath;
@@ -380,7 +381,7 @@ async function processCommentWithImages({ owner, repo, commentText, baseDir = ""
         }
 
         if (fs.existsSync(fullImagePath)) {
-            console.log(`Processing image: ${imagePath}`);
+            console.log(`Processing image: ${imagePath} (${fullImagePath})`);
             const imageUrl = await uploadImageToGitHub({
                 owner,
                 repo,
@@ -391,18 +392,16 @@ async function processCommentWithImages({ owner, repo, commentText, baseDir = ""
             if (imageUrl) {
                 // Replace [IMAGE:path] with markdown image syntax
                 const imageName = path.basename(imagePath, path.extname(imagePath));
-                processedComment = processedComment.replace(
-                    imageMatch.fullMatch,
-                    `![${imageName}](${imageUrl})`
-                );
-                console.log(`Converted image reference: ${imagePath} → ${imageUrl}`);
+                const replacement = `![${imageName}](${imageUrl})`;
+                processedComment = processedComment.replace(imageMatch.fullMatch, replacement);
+                console.log(`Converted image reference: ${imageMatch.fullMatch} → ${replacement}`);
             } else {
-                console.warn(`Failed to upload image: ${imagePath}`);
-                // Leave the original reference if upload failed
+                console.warn(`Failed to upload image: ${imagePath}, keeping original reference`);
+                // Keep the original reference if upload failed
             }
         } else {
-            console.warn(`Image not found: ${fullImagePath}`);
-            // Leave the original reference if file doesn't exist
+            console.warn(`Image not found: ${fullImagePath}, keeping original reference`);
+            // Keep the original reference if file doesn't exist
         }
     }
 
@@ -458,24 +457,36 @@ async function handleCommentsWithHistory({ owner, repo, issue_number, header, co
         let commentText = String(comment).trim();
         if (!commentText) continue;
 
-        // Process images in the comment
-        const processedCommentText = await processCommentWithImages({
-            owner,
-            repo,
-            commentText,
-            baseDir
-        });
-
         // Create a simple hash for the ORIGINAL comment (before image processing)
-        const hash = Buffer.from(commentText).toString('base64').slice(0, 16);
+        const originalHash = Buffer.from(commentText).toString('base64').slice(0, 16);
 
-        // Skip if already posted
-        if (existingHashes.has(hash)) {
+        // Skip if already posted (check against original comment)
+        if (existingHashes.has(originalHash)) {
             console.log(`Skipping already posted comment: ${commentText.slice(0, 50)}...`);
             continue;
         }
 
         try {
+            // Process images in the comment
+            console.log(`Processing comment: "${commentText}"`);
+            const processedCommentText = await processCommentWithImages({
+                owner,
+                repo,
+                commentText,
+                baseDir
+            });
+            console.log(`Processed comment result: "${processedCommentText}"`);
+
+            // Validate the processed comment
+            if (processedCommentText.includes('[object Object]')) {
+                console.error(`Comment processing failed, contains [object Object]: ${processedCommentText}`);
+                console.log(`Using original comment instead: ${commentText}`);
+                // Use original comment if processing failed
+                var finalCommentText = commentText;
+            } else {
+                var finalCommentText = processedCommentText;
+            }
+
             // Post the processed comment (with converted image URLs)
             const timestamp = new Date().toISOString();
 
@@ -483,18 +494,18 @@ async function handleCommentsWithHistory({ owner, repo, issue_number, header, co
                 owner,
                 repo,
                 issue_number,
-                body: processedCommentText
+                body: finalCommentText
             });
 
             // Track this comment as posted (store the PROCESSED version in history)
             const dateOnly = timestamp.split('T')[0]; // Extract YYYY-MM-DD
             const createdBy = github.context.actor || "github-actions[bot]"; // Use actual user who triggered the action
             // Escape special characters for YAML safety
-            const safeComment = processedCommentText.replace(/"/g, '\\"').replace(/\n/g, '\\n');
+            const safeComment = finalCommentText.replace(/"/g, '\\"').replace(/\n/g, '\\n');
             commentHistory.push(`[${dateOnly}][${createdBy}] ${safeComment}`);
 
             hasNewComments = true;
-            console.log(`Posted new comment with images on issue #${issue_number}`);
+            console.log(`Posted new comment on issue #${issue_number}: "${finalCommentText.slice(0, 100)}..."`);
         } catch (error) {
             console.warn(`Failed to post comment on issue #${issue_number}:`, error.message);
         }
