@@ -2,7 +2,7 @@
 title: 13 Tasks
 description: This is my 2nd card
 issue: 450
-status: In progress
+status: Ready for deploy to staging
 size: S
 estimate: 20
 devHours: 12
