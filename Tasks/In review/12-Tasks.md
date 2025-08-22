@@ -1,7 +1,7 @@
-﻿---
+---
 title: 12 Tasks
 description: This is my 12 card
-issue: 102
+issue: 46
 status: In review
 size: S
 estimate: 88
@@ -20,7 +20,10 @@ sprint: Sprint 2
 relationships:
   - null
 comments:
-  - Screenshot:[IMAGE:C:/Personal/ConsoleApp/Tasks/Images/Screenshot1.png]
-commentHistory: []
+  - 'Screenshot:[IMAGE:C:/Personal/ConsoleApp/Tasks/Images/Screenshot1.png]'
+commentHistory:
+  - >-
+    [2025-08-22][sctgithub]
+    Screenshot:[IMAGE:C:/Personal/ConsoleApp/Tasks/Images/Screenshot1.png]
 ---
 
