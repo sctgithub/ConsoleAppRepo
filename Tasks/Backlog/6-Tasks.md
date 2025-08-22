@@ -1,7 +1,7 @@
 ---
 title: 6th Tasks
 description: This is my 6th card
-issue: 60
+issue: 41
 status: Backlog
 size: S
 estimate: 20
@@ -17,10 +17,11 @@ labels:
   - bug
 priority: Critical
 sprint: Sprint 1
-relationships: 
-  - #35
+relationships:
+  - null
 comments:
-  - parent #36
-commentHistory: []
+  - parent
+commentHistory:
+  - '[2025-08-22][sctgithub] parent'
 ---
 
