@@ -20,8 +20,5 @@ sprint: Sprint 1
 relationships: null
 comments:
   - "Initial task setup complete"
-    "Found an issue with the API integration"
-    "Need to coordinate with the design team"
-    "Updated requirements based on feedback"
 commentHistory:[]
 ---
