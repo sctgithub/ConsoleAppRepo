@@ -301,7 +301,7 @@ async function handleCommentsWithHistory({ owner, repo, issue_number, header, co
 
             // Track this comment as posted
             const dateOnly = timestamp.split('T')[0]; // Extract YYYY-MM-DD
-            const createdBy = "github-actions[bot]"; // You can change this or make it configurable
+            const createdBy = github.context.actor || "github-actions[bot]"; // Use actual user who triggered the action
             // Escape special characters for YAML safety
             const safeComment = commentText.replace(/"/g, '\\"').replace(/\n/g, '\\n');
             commentHistory.push(`[${dateOnly}][${createdBy}] ${safeComment}`);
@@ -375,16 +375,29 @@ async function upsertComment({ owner, repo, issue_number, header, body }) {
 // ---- Move a task file into a subfolder named after its Status ----
 function moveFileToStatusFolder(currentPath, statusValue) {
     if (!statusValue) return currentPath; // no status ? leave as-is
-    const safeStatus = String(statusValue).trim().replace(/[/\\]+/g, "_"); // avoid slashes
-    const targetDir = path.join(TASKS_DIR, safeStatus);
-    if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+
+    const safeStatus = String(statusValue).trim().replace(/[/\\<>:"|?*]+/g, "_"); // avoid problematic characters
+    const baseDir = path.dirname(path.dirname(currentPath)); // Get the parent of Tasks dir
+    const targetDir = path.join(baseDir, TASKS_DIR, safeStatus);
+
+    // Create target directory if it doesn't exist
+    if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+        console.log(`Created directory: ${targetDir}`);
+    }
 
     const targetPath = path.join(targetDir, path.basename(currentPath));
     if (currentPath === targetPath) return currentPath; // already in the right place
 
     // Move the file on disk (rename handles moves)
     if (fs.existsSync(currentPath)) {
-        fs.renameSync(currentPath, targetPath);
+        try {
+            fs.renameSync(currentPath, targetPath);
+            console.log(`Successfully moved file to status folder: ${path.basename(currentPath)} → ${safeStatus}/`);
+        } catch (error) {
+            console.warn(`Failed to move file ${currentPath}:`, error.message);
+            return currentPath; // Return original path if move failed
+        }
     }
     return targetPath;
 }
@@ -455,6 +468,11 @@ function walkMdFilesRel(dir) {
             if (relocated !== filePath) {
                 console.log(`Moved ${path.relative(process.cwd(), filePath)} → ${path.relative(process.cwd(), relocated)} based on status "${data.status}"`);
                 filePath = relocated;
+
+                // Re-read the file from its new location
+                const relocatedRaw = fs.readFileSync(filePath, "utf8");
+                const relocatedParsed = matter(relocatedRaw);
+                Object.assign(data, relocatedParsed.data); // Update data with any changes from the move
             }
         }
 
