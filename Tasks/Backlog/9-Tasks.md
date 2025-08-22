@@ -17,8 +17,8 @@ labels:
   - bug
 priority: Critical
 sprint: Sprint 2
-relationships: 
-   - #36
+relationships:
+  - null
 comments:
   - Initial task setup complete
   - Screenshot:'IMAGE:Images/screenshot.png'
