@@ -1,7 +1,7 @@
 ---
 title: 1st Tasks
 description: This is my 1st card
-issue: 26
+issue: 27
 status: Backlog
 size: S
 estimate: 20
@@ -19,7 +19,10 @@ priority: Critical
 sprint: Sprint 1
 relationships: null
 comments:
-  - "Initial task setup complete"
-  - "Initial task 123"
-commentHistory: []
+  - Initial task setup complete
+  - Initial task 123
+commentHistory:
+  - '[2025-08-22][github-actions[bot]] Initial task setup complete'
+  - '[2025-08-22][github-actions[bot]] Initial task 123'
 ---
+
