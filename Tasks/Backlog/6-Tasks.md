@@ -18,9 +18,10 @@ labels:
 priority: Critical
 sprint: Sprint 1
 relationships:
-  - "#35"
+  - '#35'
 comments:
   - parent "#36"
-commentHistory: []
+commentHistory:
+  - '[2025-08-22][sctgithub] parent \"#36\"'
 ---
 
