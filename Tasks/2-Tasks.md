@@ -18,7 +18,7 @@ labels:
   - good first issue
 priority: Critical
 sprint: Sprint 1
-relationships: #27
+relationships: 
 comments:
   - "Initial **task** setup complete"
 commentHistory: []

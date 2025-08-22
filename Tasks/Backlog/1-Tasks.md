@@ -21,8 +21,6 @@ relationships: null
 comments:
   - Initial task setup complete
   - Initial task 123
-commentHistory:
-  - '[2025-08-22][github-actions[bot]] Initial task setup complete'
-  - '[2025-08-22][github-actions[bot]] Initial task 123'
+commentHistory: []
 ---
 
