@@ -264,7 +264,7 @@ async function handleCommentsWithHistory({ owner, repo, issue_number, header, co
         try {
             // Post the comment
             const timestamp = new Date().toISOString();
-            const body = `**${header}** (${timestamp})\n\n${commentText}`;
+            const body = commentText;
 
             await octokit.rest.issues.createComment({
                 owner,
