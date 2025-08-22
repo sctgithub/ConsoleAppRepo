@@ -25,7 +25,7 @@ commentHistory:
 subIssues:
   - title: Sub-task 1
     description: Description of sub-task 1
-    issue: 37
+    issue: 38
     status: Backlog
     size: S
     estimate: 11
