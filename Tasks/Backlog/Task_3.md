@@ -1,7 +1,7 @@
-﻿---
+---
 title: Task_3
 description: This is my 3rd card
-issue: 30
+issue: 34
 status: Backlog
 size: S
 estimate: 20
@@ -20,5 +20,7 @@ sprint: Sprint 1
 relationships: null
 comments:
   - If you pull yyyyyyyyyyyyyyy
+commentHistory:
+  - '[2025-08-22][sctgithub] If you pull yyyyyyyyyyyyyyy'
 ---
 
