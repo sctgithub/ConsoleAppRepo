@@ -21,6 +21,6 @@ relationships: null
 comments:
   - If you pull changes that include updated commentHistory, the script will see
     those and won't repost existing comments
-commentHistory:[]
+commentHistory: []
 ---
 
