@@ -4,7 +4,7 @@ description: This is my 14 card
 issue: 200
 status: In progress
 size: M
-estimate: 23
+estimate: 22
 devHours: 22
 qaHours: 1
 plannedStart: '2025-09-10'
