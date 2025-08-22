@@ -1,7 +1,7 @@
 ---
 title: 1st Tasks
 description: This is my  1st card
-issue: 17
+issue: 26
 status: Ready
 size: S
 estimate: 20
@@ -17,7 +17,7 @@ labels:
   - bug
 priority: Critical
 sprint: Sprint 2
-relationships: 
+relationships: null
 comments: |
   - Comment 1
   - Comment 2
