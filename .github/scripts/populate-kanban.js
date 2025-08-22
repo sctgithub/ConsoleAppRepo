@@ -136,7 +136,7 @@ async function setIssueBasics({ owner, repo, issueNumber, assignees, labels, mil
     });
 }
 
-// Function to update issue title and body
+// NEW: Function to update issue title and body
 async function updateIssueContent({ owner, repo, issueNumber, title, body }) {
     try {
         await octokit.rest.issues.update({
@@ -152,7 +152,7 @@ async function updateIssueContent({ owner, repo, issueNumber, title, body }) {
     }
 }
 
-// Function to create sub-issues and link them
+// NEW: Function to create sub-issues and link them
 async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, filePath }) {
     if (!Array.isArray(subIssues) || !subIssues.length) return [];
 
@@ -244,7 +244,23 @@ async function handleCommentsWithHistory({ owner, repo, issue_number, header, co
 
     // Get existing comment history from frontmatter
     const commentHistory = Array.isArray(frontmatter.commentHistory) ? frontmatter.commentHistory : [];
-    const existingHashes = new Set(commentHistory.map(h => h.hash));
+    const existingHashes = new Set();
+
+    // Extract hashes from existing history entries for comparison
+    for (const entry of commentHistory) {
+        if (typeof entry === 'string') {
+            // Extract content from [Date][CreatedBy] format
+            const match = entry.match(/\[.*?\]\[.*?\]\s*(.*)/);
+            if (match) {
+                const content = match[1];
+                const hash = Buffer.from(content).toString('base64').slice(0, 16);
+                existingHashes.add(hash);
+            }
+        } else if (entry.hash) {
+            // Legacy format support
+            existingHashes.add(entry.hash);
+        }
+    }
     let hasNewComments = false;
 
     // Process each comment
@@ -274,11 +290,9 @@ async function handleCommentsWithHistory({ owner, repo, issue_number, header, co
             });
 
             // Track this comment as posted
-            commentHistory.push({
-                hash,
-                content: commentText.slice(0, 100), // Store first 100 chars for reference
-                postedAt: timestamp
-            });
+            const dateOnly = timestamp.split('T')[0]; // Extract YYYY-MM-DD
+            const createdBy = "github-actions[bot]"; // You can change this or make it configurable
+            commentHistory.push(`[${dateOnly}][${createdBy}] ${commentText}`);
 
             hasNewComments = true;
             console.log(`Posted new comment on issue #${issue_number}`);

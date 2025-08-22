@@ -42,4 +42,5 @@ jobs:
           TASKS_DIR: Tasks
           RELATIONSHIP_HEADER: "Relationships"
           COMMENT_HEADER: "Automated Notes"
+          COMMENT_AUTHOR: github.context.actor
         run: node .github/scripts/populate-kanban.js
