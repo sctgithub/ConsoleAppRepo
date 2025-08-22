@@ -23,10 +23,6 @@ comments:
   - "Found an issue with the API integration"
   - "Need to coordinate with the design team"
   - "Updated requirements based on feedback"
-commentHistory: 
-  [
-  - Comment 1,
-  - Comment 2
-  ]
+commentHistory:   []
 ---
 
