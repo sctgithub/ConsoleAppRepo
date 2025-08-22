@@ -20,5 +20,6 @@ sprint: Sprint 1
 relationships: null
 comments:
   - "Initial task setup complete"
-commentHistory:[]
+  - "Initial task 123"
+commentHistory: []
 ---
