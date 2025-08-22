@@ -23,8 +23,6 @@ comments:
   - Initial task setup complete
   - Screenshot:
       - 'IMAGE:Images/screenshot.png'
-commentHistory:
-  - '[2025-08-22][sctgithub] Initial task setup complete'
-  - '[2025-08-22][sctgithub] [object Object]'
+commentHistory: []
 ---
 
