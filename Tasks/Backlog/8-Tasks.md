@@ -2,7 +2,7 @@
 title: 8th Tasks
 description: This is my 8th card
 issue: 42
-status: Backlog
+status: In progress
 size: M
 estimate: 23
 devHours: 22

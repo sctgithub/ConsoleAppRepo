@@ -2,7 +2,7 @@
 title: 7th Tasks
 description: This is my 7th card
 issue: 35
-status: Backlog
+status: In testing
 size: S
 estimate: 20
 devHours: 12

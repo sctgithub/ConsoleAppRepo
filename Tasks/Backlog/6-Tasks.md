@@ -2,7 +2,7 @@
 title: 6th Tasks
 description: This is my 6th card
 issue: 41
-status: Backlog
+status: Archive
 size: S
 estimate: 20
 devHours: 12
