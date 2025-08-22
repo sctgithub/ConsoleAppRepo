@@ -241,8 +241,19 @@ async function findOrCreateIssue({ owner, repo, filePath, fmTitle, body, existin
 async function handleCommentsWithHistory({ owner, repo, issue_number, header, comments, filePath, frontmatter }) {
     if (!Array.isArray(comments) || !comments.length) return false;
 
-    // Get existing comment history from frontmatter
-    const commentHistory = Array.isArray(frontmatter.commentHistory) ? frontmatter.commentHistory : [];
+    // Always re-read the file from disk to get the latest commentHistory (in case of git sync)
+    let latestData;
+    try {
+        const latestRaw = fs.readFileSync(filePath, "utf8");
+        const latestParsed = matter(latestRaw);
+        latestData = latestParsed.data;
+    } catch (error) {
+        console.warn(`Could not re-read file ${filePath}, using in-memory data:`, error.message);
+        latestData = frontmatter;
+    }
+
+    // Get existing comment history from the latest file data
+    const commentHistory = Array.isArray(latestData.commentHistory) ? [...latestData.commentHistory] : [];
     const existingHashes = new Set();
 
     // Extract hashes from existing history entries for comparison
@@ -251,7 +262,7 @@ async function handleCommentsWithHistory({ owner, repo, issue_number, header, co
             // Extract content from [Date][CreatedBy] format
             const match = entry.match(/\[.*?\]\[.*?\]\s*(.*)/);
             if (match) {
-                const content = match[1];
+                const content = match[1].replace(/\\"/g, '"').replace(/\\n/g, '\n'); // Unescape
                 const hash = Buffer.from(content).toString('base64').slice(0, 16);
                 existingHashes.add(hash);
             }
@@ -304,23 +315,14 @@ async function handleCommentsWithHistory({ owner, repo, issue_number, header, co
 
     // Update frontmatter with comment history if there were new comments
     if (hasNewComments) {
-        frontmatter.commentHistory = commentHistory;
-
-        // Write back to file with proper YAML formatting
+        // Write back to file with updated comment history
         try {
-            const raw = fs.readFileSync(filePath, "utf8");
-            const parsed = matter(raw);
-            parsed.data.commentHistory = commentHistory;
+            // Re-read the file again to ensure we have the absolute latest version
+            const currentRaw = fs.readFileSync(filePath, "utf8");
+            const currentParsed = matter(currentRaw);
+            currentParsed.data.commentHistory = commentHistory;
 
-            // Use YAML stringify options for better formatting
-            const updatedContent = matter.stringify(parsed.content, parsed.data, {
-                lineWidth: -1, // Prevent line wrapping
-                noRefs: true,  // Don't use YAML references
-                quotingType: '"', // Use double quotes for strings that need escaping
-                forceQuotes: false // Only quote when necessary
-            });
-
-            fs.writeFileSync(filePath, updatedContent);
+            fs.writeFileSync(filePath, matter.stringify(currentParsed.content, currentParsed.data));
             console.log(`Updated comment history in ${filePath}`);
         } catch (writeError) {
             console.warn(`Failed to update comment history in ${filePath}:`, writeError.message);
@@ -551,13 +553,39 @@ function walkMdFilesRel(dir) {
     if (fs.existsSync(".git")) {
         const { execSync } = require("child_process");
         try {
-            if (execSync("git status --porcelain").toString().trim()) {
+            // Check if there are any changes to commit
+            const gitStatus = execSync("git status --porcelain").toString().trim();
+            if (gitStatus) {
+                console.log("Git changes detected, attempting to sync with remote...");
+
+                // First, try to pull any remote changes
+                try {
+                    execSync("git pull --rebase", { stdio: 'pipe' });
+                    console.log("Successfully pulled remote changes");
+                } catch (pullError) {
+                    console.warn("Pull failed, proceeding with local changes:", pullError.message);
+                }
+
+                // Configure git user
                 execSync('git config user.name "github-actions[bot]"');
                 execSync('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"');
+
+                // Add and commit changes
                 execSync("git add -A");
                 execSync('git commit -m "Update issue numbers, sub-issues, and comment history in Markdown files"');
-                execSync("git push");
+
+                // Push changes
+                try {
+                    execSync("git push", { stdio: 'pipe' });
+                    console.log("Successfully pushed changes");
+                } catch (pushError) {
+                    console.warn("Push failed:", pushError.message);
+                }
+            } else {
+                console.log("No changes to commit");
             }
-        } catch (e) { console.warn("Commit skipped:", e.message); }
+        } catch (e) {
+            console.warn("Git operation skipped:", e.message);
+        }
     }
 })().catch(err => core.setFailed(err.message));
