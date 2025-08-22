@@ -1,4 +1,4 @@
-﻿---
+---
 title: 7th Tasks
 description: This is my 7th card
 issue: 35
@@ -20,7 +20,10 @@ sprint: Sprint 1
 relationships: null
 comments:
   - Initial task setup complete
-  - Screenshot: [IMAGE:Images/screenshot.png]
-commentHistory: []
+  - Screenshot:
+      - 'IMAGE:Images/screenshot.png'
+commentHistory:
+  - '[2025-08-22][sctgithub] Initial task setup complete'
+  - '[2025-08-22][sctgithub] [object Object]'
 ---
 

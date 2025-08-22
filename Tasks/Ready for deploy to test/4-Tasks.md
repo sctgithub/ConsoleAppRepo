@@ -45,6 +45,7 @@ subIssues:
     relationships: null
     comments:
       - subb complete
-    commentHistory: []
+    commentHistory:
+      - '[2025-08-22][sctgithub] subb complete'
 ---
 
