@@ -1,4 +1,7 @@
-﻿title: 2nd Tasks
+---
+issue: 31
+---
+title: 2nd Tasks
 description: This is my 2nd card
 issue: 27
 status: Backlog
