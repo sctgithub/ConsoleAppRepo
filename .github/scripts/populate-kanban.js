@@ -136,7 +136,7 @@ async function setIssueBasics({ owner, repo, issueNumber, assignees, labels, mil
     });
 }
 
-// NEW: Function to update issue title and body
+// Function to update issue title and body
 async function updateIssueContent({ owner, repo, issueNumber, title, body }) {
     try {
         await octokit.rest.issues.update({
@@ -152,7 +152,7 @@ async function updateIssueContent({ owner, repo, issueNumber, title, body }) {
     }
 }
 
-// NEW: Function to create sub-issues and link them
+// Function to create sub-issues and link them
 async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, filePath }) {
     if (!Array.isArray(subIssues) || !subIssues.length) return [];
 
@@ -292,7 +292,9 @@ async function handleCommentsWithHistory({ owner, repo, issue_number, header, co
             // Track this comment as posted
             const dateOnly = timestamp.split('T')[0]; // Extract YYYY-MM-DD
             const createdBy = "github-actions[bot]"; // You can change this or make it configurable
-            commentHistory.push(`[${dateOnly}][${createdBy}] ${commentText}`);
+            // Escape special characters for YAML safety
+            const safeComment = commentText.replace(/"/g, '\\"').replace(/\n/g, '\\n');
+            commentHistory.push(`[${dateOnly}][${createdBy}] ${safeComment}`);
 
             hasNewComments = true;
             console.log(`Posted new comment on issue #${issue_number}`);
@@ -305,12 +307,25 @@ async function handleCommentsWithHistory({ owner, repo, issue_number, header, co
     if (hasNewComments) {
         frontmatter.commentHistory = commentHistory;
 
-        // Write back to file
-        const raw = fs.readFileSync(filePath, "utf8");
-        const parsed = matter(raw);
-        parsed.data.commentHistory = commentHistory;
-        fs.writeFileSync(filePath, matter.stringify(parsed.content, parsed.data));
-        console.log(`Updated comment history in ${filePath}`);
+        // Write back to file with proper YAML formatting
+        try {
+            const raw = fs.readFileSync(filePath, "utf8");
+            const parsed = matter(raw);
+            parsed.data.commentHistory = commentHistory;
+
+            // Use YAML stringify options for better formatting
+            const updatedContent = matter.stringify(parsed.content, parsed.data, {
+                lineWidth: -1, // Prevent line wrapping
+                noRefs: true,  // Don't use YAML references
+                quotingType: '"', // Use double quotes for strings that need escaping
+                forceQuotes: false // Only quote when necessary
+            });
+
+            fs.writeFileSync(filePath, updatedContent);
+            console.log(`Updated comment history in ${filePath}`);
+        } catch (writeError) {
+            console.warn(`Failed to update comment history in ${filePath}:`, writeError.message);
+        }
     }
 
     return hasNewComments;
