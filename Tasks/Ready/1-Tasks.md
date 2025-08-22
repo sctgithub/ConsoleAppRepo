@@ -18,8 +18,14 @@ labels:
 priority: Critical
 sprint: Sprint 2
 relationships: null
-comments: |
+comments:
+  - "Initial task setup complete"
+  - "Found an issue with the API integration"
+  - "Need to coordinate with the design team"
+  - "Updated requirements based on feedback"
+commentHistory: [
   - Comment 1
   - Comment 2
+  ]
 ---
 

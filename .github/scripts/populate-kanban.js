@@ -136,7 +136,7 @@ async function setIssueBasics({ owner, repo, issueNumber, assignees, labels, mil
     });
 }
 
-// NEW: Function to update issue title and body
+// Function to update issue title and body
 async function updateIssueContent({ owner, repo, issueNumber, title, body }) {
     try {
         await octokit.rest.issues.update({
@@ -152,7 +152,7 @@ async function updateIssueContent({ owner, repo, issueNumber, title, body }) {
     }
 }
 
-// NEW: Function to create sub-issues and link them
+// Function to create sub-issues and link them
 async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, filePath }) {
     if (!Array.isArray(subIssues) || !subIssues.length) return [];
 
@@ -236,6 +236,70 @@ async function findOrCreateIssue({ owner, repo, filePath, fmTitle, body, existin
     parsed.data.issue = created.data.number;
     fs.writeFileSync(filePath, matter.stringify(parsed.content, parsed.data));
     return { number: created.data.number, node_id: created.data.node_id, html_url: created.data.html_url, created: true };
+}
+
+// NEW: Comment History System
+async function handleCommentsWithHistory({ owner, repo, issue_number, header, comments, filePath, frontmatter }) {
+    if (!Array.isArray(comments) || !comments.length) return false;
+
+    // Get existing comment history from frontmatter
+    const commentHistory = Array.isArray(frontmatter.commentHistory) ? frontmatter.commentHistory : [];
+    const existingHashes = new Set(commentHistory.map(h => h.hash));
+    let hasNewComments = false;
+
+    // Process each comment
+    for (const comment of comments) {
+        const commentText = String(comment).trim();
+        if (!commentText) continue;
+
+        // Create a simple hash for the comment
+        const hash = Buffer.from(commentText).toString('base64').slice(0, 16);
+
+        // Skip if already posted
+        if (existingHashes.has(hash)) {
+            console.log(`Skipping already posted comment: ${commentText.slice(0, 50)}...`);
+            continue;
+        }
+
+        try {
+            // Post the comment
+            const timestamp = new Date().toISOString();
+            const body = `**${header}** (${timestamp})\n\n${commentText}`;
+
+            await octokit.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body
+            });
+
+            // Track this comment as posted
+            commentHistory.push({
+                hash,
+                content: commentText.slice(0, 100), // Store first 100 chars for reference
+                postedAt: timestamp
+            });
+
+            hasNewComments = true;
+            console.log(`Posted new comment on issue #${issue_number}`);
+        } catch (error) {
+            console.warn(`Failed to post comment on issue #${issue_number}:`, error.message);
+        }
+    }
+
+    // Update frontmatter with comment history if there were new comments
+    if (hasNewComments) {
+        frontmatter.commentHistory = commentHistory;
+
+        // Write back to file
+        const raw = fs.readFileSync(filePath, "utf8");
+        const parsed = matter(raw);
+        parsed.data.commentHistory = commentHistory;
+        fs.writeFileSync(filePath, matter.stringify(parsed.content, parsed.data));
+        console.log(`Updated comment history in ${filePath}`);
+    }
+
+    return hasNewComments;
 }
 
 async function upsertComment({ owner, repo, issue_number, header, body }) {
@@ -359,7 +423,7 @@ function walkMdFilesRel(dir) {
         if (data.status) {
             const relocated = moveFileToStatusFolder(filePath, data.status);
             if (relocated !== filePath) {
-                console.log(`Moved ${path.relative(process.cwd(), filePath)} ? ${path.relative(process.cwd(), relocated)} based on status "${data.status}"`);
+                console.log(`Moved ${path.relative(process.cwd(), filePath)} → ${path.relative(process.cwd(), relocated)} based on status "${data.status}"`);
                 filePath = relocated;
             }
         }
@@ -371,7 +435,7 @@ function walkMdFilesRel(dir) {
         const issue = await findOrCreateIssue({
             owner, repo, filePath, fmTitle: title, body, existingIssue: data.issue
         });
-        console.log(`${issue.created ? "Created" : "Using"} issue #${issue.number} — ${issue.html_url}`);
+        console.log(`${issue.created ? "Created" : "Using"} issue #${issue.number} – ${issue.html_url}`);
 
         // ALWAYS update title and body (even for existing issues)
         if (!issue.created) {
@@ -420,12 +484,14 @@ function walkMdFilesRel(dir) {
             });
         }
 
-        // Comments (freeform notes) - ALWAYS process, not just for new issues
-        if (mdToBool(data.comments)) {
-            await upsertComment({
+        // NEW: Handle comments with history system
+        if (Array.isArray(data.comments) && data.comments.length) {
+            await handleCommentsWithHistory({
                 owner, repo, issue_number: issue.number,
                 header: COMMENT_HEADER,
-                body: String(data.comments)
+                comments: data.comments,
+                filePath,
+                frontmatter: data
             });
         }
 
@@ -461,7 +527,7 @@ function walkMdFilesRel(dir) {
                 execSync('git config user.name "github-actions[bot]"');
                 execSync('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"');
                 execSync("git add -A");
-                execSync('git commit -m "Update issue numbers and sub-issues in Markdown files"');
+                execSync('git commit -m "Update issue numbers, sub-issues, and comment history in Markdown files"');
                 execSync("git push");
             }
         } catch (e) { console.warn("Commit skipped:", e.message); }
