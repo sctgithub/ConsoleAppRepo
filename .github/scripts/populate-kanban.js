@@ -20,6 +20,7 @@ const octokit = github.getOctokit(token);
 const mdToBool = v => typeof v === "string" ? v.trim().length > 0 : !!v;
 
 // ---------- GraphQL helpers ----------
+
 async function getProjectNode() {
     const orgQ = `query($login:String!,$number:Int!){ organization(login:$login){ projectV2(number:$number){ id title }}}`;
     const userQ = `query($login:String!,$number:Int!){ user(login:$login){ projectV2(number:$number){ id title }}}`;
@@ -377,28 +378,42 @@ function moveFileToStatusFolder(currentPath, statusValue) {
     if (!statusValue) return currentPath; // no status ? leave as-is
 
     const safeStatus = String(statusValue).trim().replace(/[/\\<>:"|?*]+/g, "_"); // avoid problematic characters
-    const baseDir = path.dirname(path.dirname(currentPath)); // Get the parent of Tasks dir
-    const targetDir = path.join(baseDir, TASKS_DIR, safeStatus);
+
+    // Get the Tasks directory (absolute path)
+    const tasksDir = path.resolve(TASKS_DIR);
+    const targetDir = path.join(tasksDir, safeStatus);
+
+    // Check if we're already in the correct location
+    const currentDir = path.dirname(currentPath);
+    if (path.resolve(currentDir) === path.resolve(targetDir)) {
+        console.log(`File ${path.basename(currentPath)} is already in the correct status folder: ${safeStatus}`);
+        return currentPath; // already in the right place
+    }
 
     // Create target directory if it doesn't exist
     if (!fs.existsSync(targetDir)) {
         fs.mkdirSync(targetDir, { recursive: true });
-        console.log(`Created directory: ${targetDir}`);
+        console.log(`Created status directory: ${path.relative(process.cwd(), targetDir)}`);
+    } else {
+        console.log(`Status directory already exists: ${path.relative(process.cwd(), targetDir)}`);
     }
 
     const targetPath = path.join(targetDir, path.basename(currentPath));
-    if (currentPath === targetPath) return currentPath; // already in the right place
 
     // Move the file on disk (rename handles moves)
     if (fs.existsSync(currentPath)) {
         try {
             fs.renameSync(currentPath, targetPath);
-            console.log(`Successfully moved file to status folder: ${path.basename(currentPath)} → ${safeStatus}/`);
+            console.log(`Successfully moved file: ${path.relative(process.cwd(), currentPath)} → ${path.relative(process.cwd(), targetPath)}`);
         } catch (error) {
             console.warn(`Failed to move file ${currentPath}:`, error.message);
             return currentPath; // Return original path if move failed
         }
+    } else {
+        console.warn(`Source file does not exist: ${currentPath}`);
+        return currentPath;
     }
+
     return targetPath;
 }
 
@@ -427,10 +442,10 @@ function walkMdFilesRel(dir) {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
 
     for (const e of entries) {
-        console.log(e.name);
         const full = path.join(dir, e.name);
 
         if (e.isDirectory()) {
+            // Recursively walk subdirectories
             out.push(...walkMdFilesRel(full));
         } else if (e.isFile() && e.name.toLowerCase().endsWith(".md")) {
             // store as RELATIVE to TASKS_DIR
@@ -449,16 +464,27 @@ function walkMdFilesRel(dir) {
 
     const files = walkMdFilesRel(TASKS_DIR);
     if (!files.length) {
-        console.log("No md files");
+        console.log("No md files found in Tasks directory");
         return;
     }
+
+    console.log(`Found ${files.length} markdown files to process`);
 
     const project = await getProjectNode();
     const { map: fieldMap } = await getProjectFields(project.id);
     const statusField = fieldMap.get(STATUS_FIELD_NAME);
 
     for (const file of files) {
-        let filePath = path.join(tasksDir, file);
+        let filePath = path.resolve(tasksDir, file); // Use absolute path
+
+        // Check if file still exists (it might have been moved in a previous iteration)
+        if (!fs.existsSync(filePath)) {
+            console.log(`File ${filePath} no longer exists, skipping...`);
+            continue;
+        }
+
+        console.log(`Processing file: ${path.relative(process.cwd(), filePath)}`);
+
         const raw = fs.readFileSync(filePath, "utf8");
         const { data, content } = matter(raw);
 

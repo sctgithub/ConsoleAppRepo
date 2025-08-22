@@ -14,7 +14,6 @@
 
   <ItemGroup>
     <Folder Include="Tasks\Archive\" />
-    <Folder Include="Tasks\Backlog\" />
     <Folder Include="Tasks\In progress\" />
     <Folder Include="Tasks\In review\" />
     <Folder Include="Tasks\Ready for deploy to staging\" />
