@@ -1,6 +1,6 @@
 ---
 title: 1st Tasks
-description: This is my  1st card
+description: This is my 1st card
 issue: 26
 status: Backlog
 size: S
@@ -25,4 +25,3 @@ comments:
     Updated requirements based on feedback
 commentHistory:[]
 ---
-
