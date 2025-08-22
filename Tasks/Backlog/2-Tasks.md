@@ -1,7 +1,7 @@
 ---
 title: 2nd Tasks
 description: This is my 2nd card
-issue: 27
+issue: 29
 status: Backlog
 size: S
 estimate: 15
@@ -21,6 +21,7 @@ sprint: Sprint 1
 relationships: null
 comments:
   - Initial **task** setup complete
-commentHistory: []
+commentHistory:
+  - '[2025-08-22][github-actions[bot]] Initial **task** setup complete'
 ---
 
