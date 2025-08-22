@@ -2,7 +2,7 @@
 title: 1st Tasks
 description: This is my 1st card
 issue: 35
-status: Ready for deploy to staging
+status: In progress
 size: S
 estimate: 20
 devHours: 12
