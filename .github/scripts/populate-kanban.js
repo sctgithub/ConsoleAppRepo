@@ -153,61 +153,127 @@ async function updateIssueContent({ owner, repo, issueNumber, title, body }) {
 }
 
 // Function to create sub-issues and link them
-async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, filePath }) {
+async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, filePath, project, fieldMap }) {
     if (!Array.isArray(subIssues) || !subIssues.length) return [];
 
     const createdSubIssues = [];
 
-    for (const subIssue of subIssues) {
+    for (let i = 0; i < subIssues.length; i++) {
+        const subIssue = subIssues[i];
         try {
-            // Create the sub-issue
-            const created = await octokit.rest.issues.create({
-                owner,
-                repo,
-                title: subIssue.title || "Sub-task",
-                body: `${subIssue.description || ""}\n\nParent issue: #${parentIssueNumber}`
-            });
+            let subIssueData;
 
-            createdSubIssues.push({
-                number: created.data.number,
-                title: created.data.title,
-                url: created.data.html_url
-            });
+            // Check if sub-issue already exists
+            if (subIssue.issue) {
+                try {
+                    const existing = await octokit.rest.issues.get({
+                        owner,
+                        repo,
+                        issue_number: subIssue.issue
+                    });
+                    subIssueData = existing.data;
+                    console.log(`Using existing sub-issue #${subIssue.issue}`);
+                } catch (error) {
+                    console.warn(`Sub-issue #${subIssue.issue} not found, will create new one`);
+                    subIssue.issue = null; // Reset to create new one
+                }
+            }
 
-            // Add labels if specified
-            if (subIssue.labels && Array.isArray(subIssue.labels)) {
-                await ensureLabels({ owner, repo, labels: subIssue.labels });
-                await octokit.rest.issues.update({
+            // Create new sub-issue if it doesn't exist
+            if (!subIssueData) {
+                const created = await octokit.rest.issues.create({
                     owner,
                     repo,
-                    issue_number: created.data.number,
-                    labels: subIssue.labels
+                    title: subIssue.title || "Sub-task",
+                    body: `${subIssue.description || ""}\n\nParent issue: #${parentIssueNumber}`
+                });
+                subIssueData = created.data;
+                subIssues[i].issue = created.data.number; // Update the subIssue object
+                console.log(`Created sub-issue #${created.data.number} for parent #${parentIssueNumber}`);
+            } else {
+                // Update existing sub-issue title and body
+                await updateIssueContent({
+                    owner,
+                    repo,
+                    issueNumber: subIssue.issue,
+                    title: subIssue.title || "Sub-task",
+                    body: `${subIssue.description || ""}\n\nParent issue: #${parentIssueNumber}`
                 });
             }
 
-            console.log(`Created sub-issue #${created.data.number} for parent #${parentIssueNumber}`);
+            createdSubIssues.push({
+                number: subIssueData.number,
+                title: subIssueData.title,
+                url: subIssueData.html_url,
+                node_id: subIssueData.node_id
+            });
+
+            // Add to project
+            const itemId = await addIssueToProject(project.id, subIssueData.node_id);
+
+            // Handle sub-issue properties (assignees, labels, milestone)
+            const assignees = Array.isArray(subIssue.assignees) ? subIssue.assignees : [];
+            const labels = Array.isArray(subIssue.labels) ? subIssue.labels : [];
+            const milestoneTitle = (subIssue.milestone || "").trim();
+            await setIssueBasics({
+                owner,
+                repo,
+                issueNumber: subIssueData.number,
+                assignees,
+                labels,
+                milestoneTitle
+            });
+
+            // Handle sub-issue comments with history
+            if (Array.isArray(subIssue.comments) && subIssue.comments.length) {
+                await handleCommentsWithHistory({
+                    owner,
+                    repo,
+                    issue_number: subIssueData.number,
+                    header: COMMENT_HEADER,
+                    comments: subIssue.comments,
+                    filePath: filePath, // We'll handle this differently for sub-issues
+                    frontmatter: subIssue // Pass the sub-issue data as frontmatter
+                });
+            }
+
+            // Set project fields for sub-issue
+            const desired = {
+                [STATUS_FIELD_NAME]: subIssue.status,
+                "Sprint": subIssue.sprint,
+                "Priority": subIssue.priority,
+                "Size": subIssue.size,
+                "Estimate": subIssue.estimate,
+                "Dev Hours": subIssue.devHours,
+                "QA Hours": subIssue.qaHours,
+                "Planned Start": subIssue.plannedStart,
+                "Planned End": subIssue.plannedEnd,
+                "Actual Start": subIssue.actualStart,
+                "Actual End": subIssue.actualEnd
+            };
+
+            for (const [name, val] of Object.entries(desired)) {
+                const field = fieldMap.get(name);
+                if (field && mdToBool(val)) {
+                    await setFieldValue({ projectId: project.id, itemId, field, value: val });
+                    console.log(`Set sub-issue field ${name} = ${val} for #${subIssueData.number}`);
+                }
+            }
+
         } catch (error) {
-            console.warn(`Failed to create sub-issue for #${parentIssueNumber}:`, error.message);
+            console.warn(`Failed to process sub-issue for #${parentIssueNumber}:`, error.message);
         }
     }
 
-    // Update the markdown file with the created sub-issue numbers
-    if (createdSubIssues.length > 0) {
+    // Update the markdown file with the created/updated sub-issue numbers
+    try {
         const raw = fs.readFileSync(filePath, "utf8");
         const parsed = matter(raw);
-
-        // Add sub-issue numbers to frontmatter
-        parsed.data.subIssues = parsed.data.subIssues.map((subIssue, index) => {
-            if (createdSubIssues[index]) {
-                return {
-                    ...subIssue,
-                    issue: createdSubIssues[index].number
-                };
-            }
-            return subIssue;
-        });
-
+        parsed.data.subIssues = subIssues; // Update with the modified subIssues array
         fs.writeFileSync(filePath, matter.stringify(parsed.content, parsed.data));
+        console.log(`Updated sub-issues in ${filePath}`);
+    } catch (error) {
+        console.warn(`Failed to update sub-issues in markdown file:`, error.message);
     }
 
     return createdSubIssues;
@@ -238,19 +304,24 @@ async function findOrCreateIssue({ owner, repo, filePath, fmTitle, body, existin
     return { number: created.data.number, node_id: created.data.node_id, html_url: created.data.html_url, created: true };
 }
 
-// NEW: Comment History System
-async function handleCommentsWithHistory({ owner, repo, issue_number, header, comments, filePath, frontmatter }) {
+// NEW: Comment History System - Modified to handle sub-issues
+async function handleCommentsWithHistory({ owner, repo, issue_number, header, comments, filePath, frontmatter, isSubIssue = false }) {
     if (!Array.isArray(comments) || !comments.length) return false;
 
-    // Always re-read the file from disk to get the latest commentHistory (in case of git sync)
+    // For sub-issues, we work directly with the frontmatter object instead of re-reading file
     let latestData;
-    try {
-        const latestRaw = fs.readFileSync(filePath, "utf8");
-        const latestParsed = matter(latestRaw);
-        latestData = latestParsed.data;
-    } catch (error) {
-        console.warn(`Could not re-read file ${filePath}, using in-memory data:`, error.message);
+    if (isSubIssue) {
         latestData = frontmatter;
+    } else {
+        // Always re-read the file from disk to get the latest commentHistory (in case of git sync)
+        try {
+            const latestRaw = fs.readFileSync(filePath, "utf8");
+            const latestParsed = matter(latestRaw);
+            latestData = latestParsed.data;
+        } catch (error) {
+            console.warn(`Could not re-read file ${filePath}, using in-memory data:`, error.message);
+            latestData = frontmatter;
+        }
     }
 
     // Get existing comment history from the latest file data
@@ -314,19 +385,24 @@ async function handleCommentsWithHistory({ owner, repo, issue_number, header, co
         }
     }
 
-    // Update frontmatter with comment history if there were new comments
+    // Update comment history
     if (hasNewComments) {
-        // Write back to file with updated comment history
-        try {
-            // Re-read the file again to ensure we have the absolute latest version
-            const currentRaw = fs.readFileSync(filePath, "utf8");
-            const currentParsed = matter(currentRaw);
-            currentParsed.data.commentHistory = commentHistory;
+        if (isSubIssue) {
+            // For sub-issues, update the frontmatter object directly
+            frontmatter.commentHistory = commentHistory;
+        } else {
+            // For main issues, write back to file with updated comment history
+            try {
+                // Re-read the file again to ensure we have the absolute latest version
+                const currentRaw = fs.readFileSync(filePath, "utf8");
+                const currentParsed = matter(currentRaw);
+                currentParsed.data.commentHistory = commentHistory;
 
-            fs.writeFileSync(filePath, matter.stringify(currentParsed.content, currentParsed.data));
-            console.log(`Updated comment history in ${filePath}`);
-        } catch (writeError) {
-            console.warn(`Failed to update comment history in ${filePath}:`, writeError.message);
+                fs.writeFileSync(filePath, matter.stringify(currentParsed.content, currentParsed.data));
+                console.log(`Updated comment history in ${filePath}`);
+            } catch (writeError) {
+                console.warn(`Failed to update comment history in ${filePath}:`, writeError.message);
+            }
         }
     }
 
@@ -532,7 +608,9 @@ function walkMdFilesRel(dir) {
                 repo,
                 parentIssueNumber: issue.number,
                 subIssues: data.subIssues,
-                filePath
+                filePath,
+                project, // Pass project for field updates
+                fieldMap // Pass fieldMap for field updates
             });
 
             // Add sub-issue references to relationships comment
