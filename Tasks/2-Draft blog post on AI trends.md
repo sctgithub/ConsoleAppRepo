@@ -1,17 +1,6 @@
 ﻿---
 title: 2-Draft blog post on AI trends
-description: 
-   - 1200–1500 words, SEO optimized.
-   - |
-     Checklist:
-    - [x] Item 1
-    - [x] Item 2
-    - [ ] Item 3
-      - [ ] Item 3.1
-      - [ ] Item 3.2
-    - [ ] Item 4
-    - [ ] Item 5
-    - [ ] Item 6
+description: 1200–1500 words, SEO optimized.
 issue: 100
 status: Backlog
 size: S
