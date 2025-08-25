@@ -657,6 +657,97 @@ function walkMdFilesRel(dir) {
     return out;
 }
 
+// Function to get all issues from the project that were created by this script
+async function getProjectIssues(projectId) {
+    const query = `
+    query($projectId: ID!, $after: String) {
+      node(id: $projectId) {
+        ... on ProjectV2 {
+          items(first: 100, after: $after) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              id
+              content {
+                ... on Issue {
+                  number
+                  title
+                  url
+                }
+              }
+            }
+          }
+        }
+      }
+    }`;
+
+    let allIssues = [];
+    let hasNextPage = true;
+    let cursor = null;
+
+    while (hasNextPage) {
+        const response = await octokit.graphql(query, {
+            projectId,
+            after: cursor
+        });
+
+        const items = response.node.items.nodes;
+        const issues = items
+            .filter(item => item.content && item.content.number)
+            .map(item => ({
+                number: item.content.number,
+                title: item.content.title,
+                url: item.content.url,
+                projectItemId: item.id
+            }));
+
+        allIssues.push(...issues);
+
+        hasNextPage = response.node.items.pageInfo.hasNextPage;
+        cursor = response.node.items.pageInfo.endCursor;
+    }
+
+    return allIssues;
+}
+
+// Function to remove issue from project and optionally close it
+async function removeIssueFromProject({ projectId, projectItemId, owner, repo, issueNumber, closeIssue = false }) {
+    try {
+        // Remove from project
+        const removeFromProjectMutation = `
+        mutation($projectId: ID!, $itemId: ID!) {
+          deleteProjectV2Item(input: {projectId: $projectId, itemId: $itemId}) {
+            deletedItemId
+          }
+        }`;
+
+        await octokit.graphql(removeFromProjectMutation, {
+            projectId,
+            itemId: projectItemId
+        });
+
+        console.log(`Removed issue #${issueNumber} from project`);
+
+        // Optionally close the issue
+        if (closeIssue) {
+            await octokit.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                state: 'closed'
+            });
+            console.log(`Closed issue #${issueNumber}`);
+        }
+
+        return true;
+    } catch (error) {
+        console.warn(`Failed to remove issue #${issueNumber} from project:`, error.message);
+        return false;
+    }
+}
+
 // ---------- MAIN ----------
 
 (async () => {
@@ -676,7 +767,72 @@ function walkMdFilesRel(dir) {
     const { map: fieldMap } = await getProjectFields(project.id);
     const statusField = fieldMap.get(STATUS_FIELD_NAME);
 
-    for (const file of files) {
+    // Get all current markdown files and their issue numbers
+    const currentIssueNumbers = new Set();
+    const currentFiles = files.length > 0 ? files : [];
+
+    for (const file of currentFiles) {
+        let filePath = path.resolve(tasksDir, file);
+        if (fs.existsSync(filePath)) {
+            try {
+                const raw = fs.readFileSync(filePath, "utf8");
+                const { data } = matter(raw);
+                if (data.issue) {
+                    currentIssueNumbers.add(data.issue);
+
+                    // Also collect sub-issue numbers
+                    if (Array.isArray(data.subIssues)) {
+                        for (const subIssue of data.subIssues) {
+                            if (subIssue.issue) {
+                                currentIssueNumbers.add(subIssue.issue);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn(`Could not read ${filePath} for cleanup check:`, error.message);
+            }
+        }
+    }
+
+    // Get all issues currently in the project
+    console.log("Checking for orphaned issues to remove...");
+    const projectIssues = await getProjectIssues(project.id);
+
+    // Find issues that are in the project but not in any current markdown file
+    const orphanedIssues = projectIssues.filter(issue => !currentIssueNumbers.has(issue.number));
+
+    if (orphanedIssues.length > 0) {
+        console.log(`Found ${orphanedIssues.length} orphaned issues to remove:`);
+        for (const issue of orphanedIssues) {
+            console.log(`  - Issue #${issue.number}: ${issue.title}`);
+        }
+
+        // Environment variable to control cleanup behavior
+        const CLEANUP_ORPHANED_ISSUES = process.env.CLEANUP_ORPHANED_ISSUES === 'true';
+        const CLOSE_ORPHANED_ISSUES = process.env.CLOSE_ORPHANED_ISSUES === 'true';
+
+        if (CLEANUP_ORPHANED_ISSUES) {
+            console.log("CLEANUP_ORPHANED_ISSUES is enabled, removing orphaned issues from project...");
+            for (const issue of orphanedIssues) {
+                await removeIssueFromProject({
+                    projectId: project.id,
+                    projectItemId: issue.projectItemId,
+                    owner,
+                    repo,
+                    issueNumber: issue.number,
+                    closeIssue: CLOSE_ORPHANED_ISSUES
+                });
+            }
+        } else {
+            console.log("CLEANUP_ORPHANED_ISSUES is disabled. To enable cleanup, set CLEANUP_ORPHANED_ISSUES=true");
+            console.log("To also close the issues (not just remove from project), set CLOSE_ORPHANED_ISSUES=true");
+        }
+    } else {
+        console.log("No orphaned issues found.");
+    }
+
+    for (const file of currentFiles) {
         let filePath = path.resolve(tasksDir, file); // Use absolute path
 
         // Check if file still exists (it might have been moved in a previous iteration)
