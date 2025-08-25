@@ -20,6 +20,8 @@ actualEnd: '2025-09-10'
 relationships: []
 comments:
   - 'Image : ![Screenshot](../Images/issue50_comment1_img1.png)'
+  - 'Image : ![Screenshot](../Images/issue50_comment2_img1.png)'
+  - 'Image : ![Screenshot](../Images/issue50_comment1_img1.png)'
 commentHistory: []
 ---
 
