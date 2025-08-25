@@ -19,7 +19,7 @@ priority: Critical
 sprint: Sprint 1
 relationships: null
 comments:
-  - Comment 1
+  - Comment 2
 commentHistory:
   - '[2025-08-25][sctgithub] Comment 1'
 ---
