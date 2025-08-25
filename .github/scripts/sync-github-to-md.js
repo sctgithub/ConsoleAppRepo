@@ -329,6 +329,118 @@ function findExistingMarkdownFile(issueNumber) {
     return walkDir(TASKS_DIR);
 }
 
+// Get all existing markdown files with their issue numbers
+function getAllExistingMarkdownFiles() {
+    const files = [];
+
+    const walkDir = (dir) => {
+        if (!fs.existsSync(dir)) return;
+
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                walkDir(fullPath);
+            } else if (entry.name.endsWith('.md')) {
+                try {
+                    const content = fs.readFileSync(fullPath, 'utf8');
+                    const parsed = matter(content);
+                    if (parsed.data.issue) {
+                        files.push({
+                            filePath: fullPath,
+                            issueNumber: parsed.data.issue,
+                            fileName: entry.name,
+                            directory: path.dirname(fullPath)
+                        });
+                    }
+                } catch (error) {
+                    console.warn(`Could not parse ${fullPath}:`, error.message);
+                }
+            }
+        }
+    };
+
+    walkDir(TASKS_DIR);
+    return files;
+}
+
+// Clean up orphaned images in a directory
+function cleanupOrphanedImages(directory) {
+    const imagesDir = path.join(directory, 'Images');
+    if (!fs.existsSync(imagesDir)) return;
+
+    try {
+        const imageFiles = fs.readdirSync(imagesDir);
+        let deletedImages = 0;
+
+        for (const imageFile of imageFiles) {
+            const imagePath = path.join(imagesDir, imageFile);
+            try {
+                fs.unlinkSync(imagePath);
+                deletedImages++;
+                console.log(`Deleted orphaned image: ${path.relative(process.cwd(), imagePath)}`);
+            } catch (error) {
+                console.warn(`Failed to delete image ${imagePath}:`, error.message);
+            }
+        }
+
+        // Remove empty Images directory
+        try {
+            fs.rmdirSync(imagesDir);
+            console.log(`Removed empty Images directory: ${path.relative(process.cwd(), imagesDir)}`);
+        } catch (error) {
+            // Directory might not be empty or might not exist
+        }
+
+        return deletedImages;
+    } catch (error) {
+        console.warn(`Error cleaning up images in ${imagesDir}:`, error.message);
+        return 0;
+    }
+}
+
+// Delete orphaned markdown files and their attachments
+function deleteOrphanedMarkdownFiles(existingFiles, currentIssueNumbers) {
+    let deletedFiles = 0;
+    let deletedImages = 0;
+    const processedDirectories = new Set();
+
+    for (const fileInfo of existingFiles) {
+        if (!currentIssueNumbers.has(fileInfo.issueNumber)) {
+            try {
+                // Delete the markdown file
+                fs.unlinkSync(fileInfo.filePath);
+                deletedFiles++;
+                console.log(`Deleted orphaned markdown file: ${path.relative(process.cwd(), fileInfo.filePath)}`);
+
+                // Track directory for later cleanup
+                processedDirectories.add(fileInfo.directory);
+
+            } catch (error) {
+                console.warn(`Failed to delete ${fileInfo.filePath}:`, error.message);
+            }
+        }
+    }
+
+    // Clean up Images directories from processed directories
+    for (const directory of processedDirectories) {
+        deletedImages += cleanupOrphanedImages(directory);
+
+        // Try to remove empty status directories
+        try {
+            const entries = fs.readdirSync(directory);
+            if (entries.length === 0) {
+                fs.rmdirSync(directory);
+                console.log(`Removed empty directory: ${path.relative(process.cwd(), directory)}`);
+            }
+        } catch (error) {
+            // Directory might not be empty or might not exist
+        }
+    }
+
+    return { deletedFiles, deletedImages };
+}
+
 // Get project info
 async function getProjectNode() {
     const orgQ = `query($login:String!,$number:Int!){ organization(login:$login){ projectV2(number:$number){ id title }}}`;
@@ -348,6 +460,30 @@ async function getProjectNode() {
     const issues = await getProjectIssuesWithDetails(project.id);
 
     console.log(`Found ${issues.length} issues in project`);
+
+    // Get current issue numbers from the project
+    const currentIssueNumbers = new Set(issues.map(issue => issue.number));
+
+    // Get all existing markdown files
+    const existingFiles = getAllExistingMarkdownFiles();
+    console.log(`Found ${existingFiles.length} existing markdown files`);
+
+    // Clean up orphaned files (only if not in missing mode)
+    let deletedFiles = 0;
+    let deletedImages = 0;
+
+    if (SYNC_MODE !== "missing") {
+        console.log("Checking for orphaned markdown files to clean up...");
+        const cleanup = deleteOrphanedMarkdownFiles(existingFiles, currentIssueNumbers);
+        deletedFiles = cleanup.deletedFiles;
+        deletedImages = cleanup.deletedImages;
+
+        if (deletedFiles > 0) {
+            console.log(`Cleaned up ${deletedFiles} orphaned markdown files and ${deletedImages} images`);
+        } else {
+            console.log("No orphaned files found to clean up");
+        }
+    }
 
     let created = 0;
     let updated = 0;
@@ -390,10 +526,12 @@ async function getProjectNode() {
     console.log(`\nSync complete:`);
     console.log(`  Created: ${created} files`);
     console.log(`  Updated: ${updated} files`);
+    console.log(`  Deleted: ${deletedFiles} files`);
     console.log(`  Skipped: ${skipped} files`);
+    console.log(`  Cleaned images: ${deletedImages} files`);
 
-    // Commit changes if any files were created/updated
-    if (created > 0 || updated > 0) {
+    // Commit changes if any files were created/updated/deleted
+    if (created > 0 || updated > 0 || deletedFiles > 0) {
         const { execSync } = require("child_process");
         try {
             // Pull latest changes first to avoid conflicts
@@ -407,7 +545,7 @@ async function getProjectNode() {
             execSync('git config user.name "github-actions[bot]"');
             execSync('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"');
             execSync("git add -A");
-            execSync(`git commit -m "Sync ${created} new and ${updated} updated markdown files from GitHub issues"`);
+            execSync(`git commit -m "Sync: ${created} new, ${updated} updated, ${deletedFiles} deleted markdown files from GitHub issues"`);
 
             // Try to push, with retry logic
             let pushAttempts = 0;
