@@ -396,12 +396,45 @@ async function getProjectNode() {
     if (created > 0 || updated > 0) {
         const { execSync } = require("child_process");
         try {
+            // Pull latest changes first to avoid conflicts
+            try {
+                execSync("git pull --rebase origin main", { stdio: 'pipe' });
+                console.log("Successfully pulled latest changes");
+            } catch (pullError) {
+                console.warn("Pull failed, proceeding with local changes:", pullError.message);
+            }
+
             execSync('git config user.name "github-actions[bot]"');
             execSync('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"');
             execSync("git add -A");
             execSync(`git commit -m "Sync ${created} new and ${updated} updated markdown files from GitHub issues"`);
-            execSync("git push");
-            console.log("Changes committed and pushed to repository");
+
+            // Try to push, with retry logic
+            let pushAttempts = 0;
+            const maxPushAttempts = 3;
+
+            while (pushAttempts < maxPushAttempts) {
+                try {
+                    execSync("git push origin main", { stdio: 'pipe' });
+                    console.log("Changes committed and pushed to repository");
+                    break;
+                } catch (pushError) {
+                    pushAttempts++;
+                    console.warn(`Push attempt ${pushAttempts} failed:`, pushError.message);
+
+                    if (pushAttempts < maxPushAttempts) {
+                        // Pull again and retry
+                        try {
+                            execSync("git pull --rebase origin main", { stdio: 'pipe' });
+                            console.log("Pulled changes before retry");
+                        } catch (retryPullError) {
+                            console.warn("Retry pull failed:", retryPullError.message);
+                        }
+                    } else {
+                        console.error("Failed to push after maximum attempts");
+                    }
+                }
+            }
         } catch (error) {
             console.warn("Failed to commit changes:", error.message);
         }
