@@ -20,7 +20,6 @@ const octokit = github.getOctokit(token);
 const mdToBool = v => typeof v === "string" ? v.trim().length > 0 : !!v;
 
 // ---------- GraphQL helpers ----------
-
 async function getProjectNode() {
     const orgQ = `query($login:String!,$number:Int!){ organization(login:$login){ projectV2(number:$number){ id title }}}`;
     const userQ = `query($login:String!,$number:Int!){ user(login:$login){ projectV2(number:$number){ id title }}}`;

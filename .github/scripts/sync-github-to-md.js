@@ -10,7 +10,7 @@ const OWNER = process.env.OWNER;
 const PROJECT_NUMBER = Number(process.env.PROJECT_NUMBER);
 const STATUS_FIELD_NAME = process.env.STATUS_FIELD_NAME || "Status";
 const TASKS_DIR = process.env.TASKS_DIR || "Tasks";
-const SYNC_MODE = process.env.SYNC_MODE || "missing"; // "missing", "all", or "force"
+const SYNC_MODE = process.env.SYNC_MODE || "all"; // "missing", "all", or "force"
 
 if (!token) { core.setFailed("PROJECTS_TOKEN missing"); process.exit(1); }
 if (!OWNER || !PROJECT_NUMBER) { core.setFailed("OWNER/PROJECT_NUMBER missing"); process.exit(1); }

@@ -26,7 +26,7 @@ permissions:
   contents: write     # we write markdown files and images
   issues: read        # we read issue data
   pull-requests: read
-
+   
 jobs:
   sync-issues:
     runs-on: ubuntu-latest
