@@ -172,8 +172,11 @@ async function processIssueImages(issueNumber, comments, baseDir) {
     const imageRegex = /!\[([^\]]*)\]\((https:\/\/[^)]+)\)/g;
     const processedComments = [];
 
-    // Ensure Images directory exists
-    const imagesDir = path.join(baseDir, "Images");
+    // Use main Tasks/Images directory instead of status-specific directory
+    const mainTasksDir = path.resolve(TASKS_DIR);
+    const imagesDir = path.join(mainTasksDir, "Images");
+
+    // Ensure main Images directory exists
     if (!fs.existsSync(imagesDir)) {
         fs.mkdirSync(imagesDir, { recursive: true });
     }
@@ -199,7 +202,8 @@ async function processIssueImages(issueNumber, comments, baseDir) {
                 await downloadImage(imageUrl, localPath);
                 console.log(`Downloaded image: ${localFileName}`);
 
-                // Replace URL with local path
+                // Calculate relative path from the status folder to main Images directory
+                // e.g., from Tasks/Backlog/ to Tasks/Images/ = ../Images/
                 const relativePath = `../Images/${localFileName}`;
                 commentText = commentText.replace(fullMatch, `![${altText}](${relativePath})`);
 
@@ -364,32 +368,33 @@ function getAllExistingMarkdownFiles() {
     return files;
 }
 
-// Clean up orphaned images in a directory
-function cleanupOrphanedImages(directory) {
-    const imagesDir = path.join(directory, 'Images');
-    if (!fs.existsSync(imagesDir)) return;
+// Clean up orphaned images in the main Images directory
+function cleanupOrphanedImages(orphanedIssueNumbers) {
+    const mainTasksDir = path.resolve(TASKS_DIR);
+    const imagesDir = path.join(mainTasksDir, "Images");
+
+    if (!fs.existsSync(imagesDir)) return 0;
 
     try {
         const imageFiles = fs.readdirSync(imagesDir);
         let deletedImages = 0;
 
         for (const imageFile of imageFiles) {
-            const imagePath = path.join(imagesDir, imageFile);
-            try {
-                fs.unlinkSync(imagePath);
-                deletedImages++;
-                console.log(`Deleted orphaned image: ${path.relative(process.cwd(), imagePath)}`);
-            } catch (error) {
-                console.warn(`Failed to delete image ${imagePath}:`, error.message);
+            // Check if this image belongs to an orphaned issue
+            const issueMatch = imageFile.match(/^issue(\d+)_/);
+            if (issueMatch) {
+                const issueNumber = parseInt(issueMatch[1]);
+                if (orphanedIssueNumbers.has(issueNumber)) {
+                    const imagePath = path.join(imagesDir, imageFile);
+                    try {
+                        fs.unlinkSync(imagePath);
+                        deletedImages++;
+                        console.log(`Deleted orphaned image: ${path.relative(process.cwd(), imagePath)}`);
+                    } catch (error) {
+                        console.warn(`Failed to delete image ${imagePath}:`, error.message);
+                    }
+                }
             }
-        }
-
-        // Remove empty Images directory
-        try {
-            fs.rmdirSync(imagesDir);
-            console.log(`Removed empty Images directory: ${path.relative(process.cwd(), imagesDir)}`);
-        } catch (error) {
-            // Directory might not be empty or might not exist
         }
 
         return deletedImages;
@@ -402,7 +407,7 @@ function cleanupOrphanedImages(directory) {
 // Delete orphaned markdown files and their attachments
 function deleteOrphanedMarkdownFiles(existingFiles, currentIssueNumbers) {
     let deletedFiles = 0;
-    let deletedImages = 0;
+    const orphanedIssueNumbers = new Set();
     const processedDirectories = new Set();
 
     for (const fileInfo of existingFiles) {
@@ -411,6 +416,7 @@ function deleteOrphanedMarkdownFiles(existingFiles, currentIssueNumbers) {
                 // Delete the markdown file
                 fs.unlinkSync(fileInfo.filePath);
                 deletedFiles++;
+                orphanedIssueNumbers.add(fileInfo.issueNumber);
                 console.log(`Deleted orphaned markdown file: ${path.relative(process.cwd(), fileInfo.filePath)}`);
 
                 // Track directory for later cleanup
@@ -422,11 +428,11 @@ function deleteOrphanedMarkdownFiles(existingFiles, currentIssueNumbers) {
         }
     }
 
-    // Clean up Images directories from processed directories
-    for (const directory of processedDirectories) {
-        deletedImages += cleanupOrphanedImages(directory);
+    // Clean up orphaned images from the main Images directory
+    const deletedImages = cleanupOrphanedImages(orphanedIssueNumbers);
 
-        // Try to remove empty status directories
+    // Try to remove empty status directories
+    for (const directory of processedDirectories) {
         try {
             const entries = fs.readdirSync(directory);
             if (entries.length === 0) {
