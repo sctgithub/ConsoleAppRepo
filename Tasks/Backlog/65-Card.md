@@ -1,6 +1,6 @@
 ---
 title: 65-Card
-description: >
+description: >-
   ### My Heading
 
   **Bold example**
@@ -35,7 +35,6 @@ description: >
   - [ ] Task 2  
 
   - [ ] Task 3
-enhanceDescription: true
 issue: 65
 status: Backlog
 size: S
@@ -52,17 +51,6 @@ labels:
   - enhancement
 priority: Medium
 sprint: Sprint 1
-commentHistory:
-  - '[2025-08-26][sctgithub] Comment 1'
-  - >-
-    [2025-08-26][sctgithub] Implementation checklist:\n- [x] Item 1\n- [x] Item
-    2\n- [ ] Item 3\n  - [ ] Item 3.1\n  - [ ] Item 3.2\n- [ ] Item 4\n- [ ]
-    Item 5\n- [ ] Item 6
-  - '[2025-08-26][sctgithub] Comment 2'
-  - '[2025-08-26][sctgithub] parent \"#64\"'
-  - >-
-    [2025-08-26][sctgithub] Screenshot :
-    ![Screenshot](https://raw.githubusercontent.com/sctgithub/ConsoleAppRepo/main/images/uploads/1756228111057-Screenshot.png)
 comments:
   - Comment 1
   - |
@@ -78,5 +66,25 @@ comments:
   - Comment 2
   - parent "#64"
   - 'Screenshot : [IMAGE:../Images/Screenshot.png]'
+commentHistory:
+  - '[2025-08-26][sctgithub] Comment 1'
+  - >-
+    [2025-08-26][sctgithub] Implementation checklist:\n- [x] Item 1\n- [x] Item
+    2\n- [ ] Item 3\n  - [ ] Item 3.1\n  - [ ] Item 3.2\n- [ ] Item 4\n- [ ]
+    Item 5\n- [ ] Item 6
+  - '[2025-08-26][sctgithub] Comment 2'
+  - '[2025-08-26][sctgithub] parent \"#64\"'
+  - >-
+    [2025-08-26][sctgithub] Screenshot :
+    ![Screenshot](https://raw.githubusercontent.com/sctgithub/ConsoleAppRepo/main/images/uploads/1756228111057-Screenshot.png)
+  - >-
+    [2025-08-26][sctgithub] Screenshot : Screenshot:
+    [IMAGE:Images/1756226959585-Screenshot.png]
+  - >-
+    [2025-08-26][sctgithub] Screenshot : Screenshot:
+    [IMAGE:Images/1756227588623-Screenshot.png]
+  - >-
+    [2025-08-26][sctgithub] Screenshot : Screenshot:
+    [IMAGE:Images/1756228111057-Screenshot.png]
 ---
 
