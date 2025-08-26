@@ -19,5 +19,5 @@ labels:
 priority: Medium
 sprint: Sprint 1
 commentHistory: []
-comments: Comment 1
+comments: Normal Comment 1
 ---
