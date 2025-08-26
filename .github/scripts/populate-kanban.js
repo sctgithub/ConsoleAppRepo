@@ -25,7 +25,7 @@ function enhanceDescriptionSelectively(originalDescription, frontmatter) {
 
     // Check if enhancement is explicitly disabled
     if (frontmatter && frontmatter.enhanceDescription === false) {
-        console.log('Description enhancement disabled by frontmatter flag.');
+        console.log('Description enhancement disabled by frontmatter flag');
         return originalDescription;
     }
 
