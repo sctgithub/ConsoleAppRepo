@@ -17,9 +17,10 @@ labels:
   - bug
 priority: Critical
 sprint: Sprint 1
-relationships:
+relationships: null
 comments:
-  - Comment 1 
-commentHistory: []
+  - Comment 1
+commentHistory:
+  - '[2025-08-26][sctgithub] Comment 1'
 ---
 
