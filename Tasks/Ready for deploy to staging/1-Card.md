@@ -19,8 +19,8 @@ description: |
   - [x] Task 1 to complete
   - [ ] Task 2 to complete  
   - [ ] Task 3 to complete
-issue: 54
-status: Ready for deploy to staging
+issue: 55
+status: Backlog
 size: S
 estimate: 20
 devHours: 12
@@ -52,14 +52,6 @@ comments:
   - Comment 2
   - parent "#36"
   - 'Image Description : [IMAGE:../Images/Screenshot.png]'
-commentHistory:
-  - '[2025-08-26][sctgithub] Comment 1'
-  - >-
-    [2025-08-26][sctgithub] Implementation checklist:\n- [x] Item 1\n- [x] Item
-    2\n- [ ] Item 3\n  - [ ] Item 3.1\n  - [ ] Item 3.2\n- [ ] Item 4\n- [ ]
-    Item 5\n- [ ] Item 6
-  - '[2025-08-26][sctgithub] Comment 2'
-  - '[2025-08-26][sctgithub] parent \"#36\"'
-  - '[2025-08-26][sctgithub] Image Description : [IMAGE:../Images/Screenshot.png]'
+commentHistory: []
 ---
 

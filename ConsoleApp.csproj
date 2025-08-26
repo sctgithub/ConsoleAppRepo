@@ -19,7 +19,6 @@
     <Folder Include="Tasks\Done\" />
     <Folder Include="Tasks\In progress\" />
     <Folder Include="Tasks\In review\" />
-    <Folder Include="Tasks\Images\" />
     <Folder Include="Tasks\Ready for deploy to test\" />
     <Folder Include="Tasks\Ready\" />
   </ItemGroup>
