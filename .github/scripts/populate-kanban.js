@@ -20,8 +20,14 @@ const octokit = github.getOctokit(token);
 const mdToBool = v => typeof v === "string" ? v.trim().length > 0 : !!v;
 
 // Function to selectively enhance description with missing formatting elements
-function enhanceDescriptionSelectively(originalDescription) {
+function enhanceDescriptionSelectively(originalDescription, frontmatter) {
     if (!originalDescription) originalDescription = "";
+
+    // Check if enhancement is explicitly disabled
+    if (frontmatter && frontmatter.enhanceDescription === false) {
+        console.log('Description enhancement disabled by frontmatter flag');
+        return originalDescription;
+    }
 
     const formatElements = [
         {
@@ -249,7 +255,7 @@ async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, file
             // Create new sub-issue if it doesn't exist
             if (!subIssueData) {
                 // Enhanced sub-issue description with selective formatting
-                const enhancedSubDescription = enhanceDescriptionSelectively(subIssue.description);
+                const enhancedSubDescription = enhanceDescriptionSelectively(subIssue.description, subIssue);
                 const subIssueBody = `${enhancedSubDescription}\n\n**Parent issue:** #${parentIssueNumber}`;
 
                 const created = await octokit.rest.issues.create({
@@ -263,7 +269,7 @@ async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, file
                 console.log(`Created sub-issue #${created.data.number} for parent #${parentIssueNumber}`);
             } else {
                 // Update existing sub-issue title and body with selective formatting
-                const enhancedSubDescription = enhanceDescriptionSelectively(subIssue.description);
+                const enhancedSubDescription = enhanceDescriptionSelectively(subIssue.description, subIssue);
                 const subIssueBody = `${enhancedSubDescription}\n\n**Parent issue:** #${parentIssueNumber}`;
 
                 await updateIssueContent({
@@ -370,7 +376,7 @@ async function findOrCreateIssue({ owner, repo, filePath, fmTitle, body, existin
     if (hit) return { number: hit.number, node_id: hit.node_id, html_url: hit.html_url, created: false };
 
     // Create with selective description enhancement
-    const enhancedBody = enhanceDescriptionSelectively(body);
+    const enhancedBody = enhanceDescriptionSelectively(body, data);
     const created = await octokit.rest.issues.create({ owner, repo, title: fmTitle, body: enhancedBody });
     // Write back issue number into the md file immediately
     const raw = fs.readFileSync(filePath, "utf8");
@@ -790,7 +796,7 @@ function walkMdFilesRel(dir) {
 
         // ALWAYS update title and body (even for existing issues) with selective enhancement
         if (!issue.created) {
-            const enhancedBody = enhanceDescriptionSelectively(body);
+            const enhancedBody = enhanceDescriptionSelectively(body, data);
             await updateIssueContent({ owner, repo, issueNumber: issue.number, title, body: enhancedBody });
         }
 

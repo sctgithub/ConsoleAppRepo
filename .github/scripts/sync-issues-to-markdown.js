@@ -96,7 +96,67 @@ async function downloadImage(imageUrl, fileName) {
     });
 }
 
-// Process issue body and download images, convert to local references
+// Check if description contains any markdown formatting
+function hasFormattedText(description) {
+    if (!description) return false;
+
+    const formattingPatterns = [
+        /#{1,6}\s+.+/, // Headers (# ## ### etc.)
+        /\*\*[^*]+\*\*/, // Bold text
+        /\*[^*]+\*/, // Italic text (not bold)
+        /^>\s+.+/m, // Blockquotes
+        /`[^`]+`/, // Inline code
+        /```[\s\S]*?```/, // Code blocks
+        /\[.+?\]\(.+?\)/, // Links
+        /^[-*+]\s+/m, // Unordered lists
+        /^\d+\.\s+/m, // Numbered lists
+        /^[-*+]\s+\[[x\s]\]/m, // Checkboxes
+        /!\[.*?\]\(.+?\)/, // Images
+        /\|.+\|/, // Tables
+        /^---+$/m, // Horizontal rules
+        /~~.+?~~/, // Strikethrough
+    ];
+
+    const foundPatterns = formattingPatterns.filter(pattern => pattern.test(description));
+
+    console.log(`Found ${foundPatterns.length} formatting patterns in description`);
+    return foundPatterns.length > 0;
+}
+function removeEnhancementFormatting(description) {
+    if (!description) return "";
+
+    console.log(`Cleaning enhancement formatting from description`);
+
+    // Define the enhancement patterns to remove
+    const enhancementPatterns = [
+        /### Heading\s*\n/g,
+        /\*\*Bold text example\*\*\s*\n/g,
+        /\*Italic text example\*\s*\n/g,
+        /> This is a quote block for important notes\s*\n/g,
+        /`Code snippet example`\s*\n/g,
+        /\[Link example\]\(https:\/\/github\.com\)\s*\n/g,
+        /- Unordered list item 1\s*\n- Unordered list item 2\s*\n- Unordered list item 3\s*\n/g,
+        /1\. Numbered list item 1\s*\n2\. Numbered list item 2\s*\n3\. Numbered list item 3\s*\n/g,
+        /\*\*Task Checklist:\*\*\s*\n- \[ \] Task 1 to complete\s*\n- \[ \] Task 2 to complete\s*\n- \[ \] Task 3 to complete\s*\n/g,
+        /^\s*---\s*\n/gm // Remove separator lines
+    ];
+
+    let cleanedDescription = description;
+
+    // Remove each enhancement pattern
+    for (const pattern of enhancementPatterns) {
+        cleanedDescription = cleanedDescription.replace(pattern, '');
+    }
+
+    // Clean up extra whitespace and newlines
+    cleanedDescription = cleanedDescription
+        .replace(/\n{3,}/g, '\n\n') // Replace 3+ newlines with 2
+        .trim(); // Remove leading/trailing whitespace
+
+    console.log(`Cleaned description from ${description.length} to ${cleanedDescription.length} characters`);
+
+    return cleanedDescription;
+}
 async function processIssueBody(body) {
     if (!body) return "";
 
@@ -716,7 +776,7 @@ async function syncIssuesFromGitHub() {
         console.error("Sync failed:", error.message);
         throw error;
     }
-} 
+}
 
 // Run the sync
 (async () => {
