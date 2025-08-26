@@ -74,6 +74,15 @@ async function processIssueBody(body) {
         const [fullMatch, altText, imageUrl] = match;
 
         try {
+            // Skip if it's already a GitHub raw URL from our own repo
+            if (imageUrl.includes('raw.githubusercontent.com') && imageUrl.includes('images/uploads/')) {
+                // Convert back to local reference
+                const fileName = path.basename(imageUrl);
+                const localReference = `[IMAGE:Images/${fileName}]`;
+                processedBody = processedBody.replace(fullMatch, `${altText ? altText + ': ' : ''}${localReference}`);
+                continue;
+            }
+
             // Extract filename from URL or generate one
             let fileName = path.basename(imageUrl.split('?')[0]);
             if (!fileName.match(/\.(jpg|jpeg|png|gif|svg|webp)$/i)) {
@@ -93,6 +102,50 @@ async function processIssueBody(body) {
     }
 
     return processedBody;
+}
+
+// Process GitHub comment and download images
+async function processGitHubComment(commentBody) {
+    if (!commentBody) return "";
+
+    // Find all image references in markdown format
+    const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
+    let processedComment = commentBody;
+    let match;
+
+    while ((match = imageRegex.exec(commentBody)) !== null) {
+        const [fullMatch, altText, imageUrl] = match;
+
+        try {
+            // Skip if it's already a GitHub raw URL from our own repo
+            if (imageUrl.includes('raw.githubusercontent.com') && imageUrl.includes('images/uploads/')) {
+                // Convert back to local reference
+                const fileName = path.basename(imageUrl);
+                const localReference = `[IMAGE:Images/${fileName}]`;
+                processedComment = processedComment.replace(fullMatch, `${altText ? altText + ': ' : ''}${localReference}`);
+                continue;
+            }
+
+            // Extract filename from URL or generate one
+            let fileName = path.basename(imageUrl.split('?')[0]);
+            if (!fileName.match(/\.(jpg|jpeg|png|gif|svg|webp)$/i)) {
+                fileName = `comment_image_${Date.now()}.png`;
+            }
+
+            // Download image and get relative path
+            const relativePath = await downloadImage(imageUrl, fileName);
+
+            // Replace with local reference using [IMAGE:path] format
+            const localReference = `[IMAGE:${relativePath}]`;
+            processedComment = processedComment.replace(fullMatch, `${altText ? altText + ': ' : ''}${localReference}`);
+
+        } catch (error) {
+            console.warn(`Failed to download comment image ${imageUrl}: ${error.message}`);
+            // Keep original if download fails
+        }
+    }
+
+    return processedComment;
 }
 
 // Get project fields and create field mapping
@@ -295,14 +348,21 @@ async function createMarkdownFile(issue, projectFields) {
     const allComments = issueData.comments.nodes
         .filter(comment => !comment.body.includes("**Relationships**") &&
             !comment.body.includes("**Automated Notes**"))
-        .map(comment => ({
-            body: comment.body,
-            createdAt: comment.createdAt,
-            author: comment.author?.login || "unknown"
-        }));
+        .map(async (comment) => {
+            const processedBody = await processGitHubComment(comment.body);
+            return {
+                body: processedBody,
+                originalBody: comment.body,
+                createdAt: comment.createdAt,
+                author: comment.author?.login || "unknown"
+            };
+        });
+
+    // Wait for all comment processing to complete
+    const processedComments = await Promise.all(allComments);
 
     // Create comment history entries in the format used by the populate script
-    const commentHistory = allComments.map(comment => {
+    const commentHistory = processedComments.map(comment => {
         const dateOnly = comment.createdAt.split('T')[0]; // Extract YYYY-MM-DD
         const safeComment = comment.body.replace(/"/g, '\\"').replace(/\n/g, '\\n');
         return `[${dateOnly}][${comment.author}] ${safeComment}`;
@@ -328,7 +388,7 @@ async function createMarkdownFile(issue, projectFields) {
         sprint: fieldMap["Sprint"] || null,
         milestone: issueData.milestone?.title || null,
         relationships: [], // This would need more complex parsing
-        comments: [], // Leave empty - all comments go to commentHistory
+        comments: [], // Will be populated from existing file or left empty
         commentHistory: commentHistory
     };
 
@@ -424,6 +484,9 @@ async function createMarkdownFile(issue, projectFields) {
     } else {
         // Create new file - only do this for issues that don't have existing markdown files
         console.log(`Creating new markdown file for issue #${issueData.number} (no existing file found)`);
+
+        // For new files, keep comments empty so they can be added locally
+        frontmatter.comments = [];
 
         // Generate filename based on your naming pattern
         const safeTitle = issueData.title
