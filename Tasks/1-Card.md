@@ -1,5 +1,5 @@
 ﻿---
-title: 1st Tasks
+title: 1st Card
 description: |
     ### Heading
     **Bold text example**
@@ -16,7 +16,7 @@ description: |
     3. Numbered list item 3
 
     **Task Checklist:**
-    - [ ] Task 1 to complete
+    - [x] Task 1 to complete
     - [ ] Task 2 to complete  
     - [ ] Task 3 to complete
 issue: 35
