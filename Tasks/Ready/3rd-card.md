@@ -1,5 +1,5 @@
 ---
-title: 4th Card
+title: 3rd Card
 description: |-
   ### Heading
 
@@ -28,24 +28,25 @@ description: |-
 
   ---
 
-  Crated on github
-issue: 58
-status: In progress
-size: XS
-plannedStart: '2025-08-27'
-plannedEnd: '2025-08-29'
-actualStart: '2025-08-31'
-actualEnd: '2025-08-13'
+  This is my 3rd card
+issue: 57
+status: Ready
+size: S
+estimate: 20
+devHours: 12
+qaHours: 4
+plannedStart: '2025-09-10'
+plannedEnd: '2025-09-12'
+actualStart: '2025-09-13'
+actualEnd: '2025-09-15'
 assignees:
   - sctgithub
 labels:
-  - enhancement
-priority: Medium
-sprint: Sprint 2
+  - bug
+priority: Critical
+sprint: Sprint 1
 commentHistory:
-  - >-
-    [2025-08-26][sctgithub] Image:
-    [IMAGE:Images/comment_image_1756188559959.png]
+  - '[2025-08-26][sctgithub] Comment 1'
   - '[2025-08-26][sctgithub] Image: [IMAGE:Images/github_image_aHR0cHM6.png]'
 comments: []
 ---
