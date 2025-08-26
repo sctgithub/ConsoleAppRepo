@@ -100,29 +100,69 @@ async function downloadImage(imageUrl, fileName) {
 async function processIssueBody(body) {
     if (!body) return "";
 
-    // Find all image references in markdown format
-    const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
-    let processedBody = body;
-    let match;
+    console.log(`Processing issue body: ${body.substring(0, 100)}...`);
 
-    while ((match = imageRegex.exec(body)) !== null) {
-        const [fullMatch, altText, imageUrl] = match;
+    // Find both markdown and HTML image references
+    const markdownImageRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
+    const htmlImageRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+
+    let processedBody = body;
+    const imageMatches = [];
+
+    // Find markdown images
+    let match;
+    while ((match = markdownImageRegex.exec(body)) !== null) {
+        imageMatches.push({
+            fullMatch: match[0],
+            altText: match[1],
+            imageUrl: match[2],
+            type: 'markdown'
+        });
+    }
+
+    // Find HTML images
+    while ((match = htmlImageRegex.exec(body)) !== null) {
+        const altMatch = match[0].match(/alt=["']([^"']*)["']/i);
+        const altText = altMatch ? altMatch[1] : 'Image';
+
+        imageMatches.push({
+            fullMatch: match[0],
+            altText: altText,
+            imageUrl: match[1],
+            type: 'html'
+        });
+    }
+
+    console.log(`Found ${imageMatches.length} images in issue body (markdown + HTML)`);
+
+    for (const imageMatch of imageMatches) {
+        const { fullMatch, altText, imageUrl, type } = imageMatch;
 
         try {
+            console.log(`Processing ${type} image in issue body: ${imageUrl}`);
+
             // Skip if it's already a GitHub raw URL from our own repo
             if (imageUrl.includes('raw.githubusercontent.com') && imageUrl.includes('images/uploads/')) {
-                // Convert back to local reference
+                console.log('Issue body image is already from our repo, converting to local reference');
                 const fileName = path.basename(imageUrl);
                 const localReference = `[IMAGE:Images/${fileName}]`;
                 processedBody = processedBody.replace(fullMatch, `${altText ? altText + ': ' : ''}${localReference}`);
                 continue;
             }
 
-            // Extract filename from URL or generate one
+            // Generate a deterministic filename based on the URL to avoid duplicates
+            const urlHash = Buffer.from(imageUrl).toString('base64').replace(/[+/=]/g, '').substring(0, 8);
             let fileName = path.basename(imageUrl.split('?')[0]);
+
             if (!fileName.match(/\.(jpg|jpeg|png|gif|svg|webp)$/i)) {
-                fileName = `image_${Date.now()}.png`;
+                fileName = `issue_image_${urlHash}.png`;
+            } else {
+                const ext = path.extname(fileName);
+                const name = path.basename(fileName, ext);
+                fileName = `${name}_${urlHash}${ext}`;
             }
+
+            console.log(`Downloading issue body image as: ${fileName}`);
 
             // Download image and get relative path
             const relativePath = await downloadImage(imageUrl, fileName);
@@ -131,8 +171,10 @@ async function processIssueBody(body) {
             const localReference = `[IMAGE:${relativePath}]`;
             processedBody = processedBody.replace(fullMatch, `${altText ? altText + ': ' : ''}${localReference}`);
 
+            console.log(`Successfully processed ${type} image in issue body: ${imageUrl} -> ${localReference}`);
+
         } catch (error) {
-            console.warn(`Failed to download image ${imageUrl}: ${error.message}`);
+            console.warn(`Failed to download issue body image ${imageUrl}: ${error.message}`);
         }
     }
 
@@ -603,9 +645,8 @@ async function createMarkdownFile(issue, projectFields) {
         }
     }
 
-    // Create markdown content
-    const content = "";  // Main content goes in description
-    const markdownContent = matter.stringify(content, frontmatter);
+    // Create markdown content (no additional content section)
+    const markdownContent = matter.stringify("", frontmatter);
 
     // Write file
     fs.writeFileSync(filePath, markdownContent);
