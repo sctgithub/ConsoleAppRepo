@@ -21,9 +21,11 @@ const octokit = github.getOctokit(token);
 function ensureDirectories() {
     if (!fs.existsSync(TASKS_DIR)) {
         fs.mkdirSync(TASKS_DIR, { recursive: true });
+        console.log(`Created directory: ${TASKS_DIR}`);
     }
     if (!fs.existsSync(IMAGES_DIR)) {
         fs.mkdirSync(IMAGES_DIR, { recursive: true });
+        console.log(`Created directory: ${IMAGES_DIR}`);
     }
 }
 
@@ -96,71 +98,13 @@ async function downloadImage(imageUrl, fileName) {
     });
 }
 
-// Check if description contains any markdown formatting
-function hasFormattedText(description) {
-    if (!description) return false;
-
-    const formattingPatterns = [
-        /#{1,6}\s+.+/, // Headers (# ## ### etc.)
-        /\*\*[^*]+\*\*/, // Bold text
-        /\*[^*]+\*/, // Italic text (not bold)
-        /^>\s+.+/m, // Blockquotes
-        /`[^`]+`/, // Inline code
-        /```[\s\S]*?```/, // Code blocks
-        /\[.+?\]\(.+?\)/, // Links
-        /^[-*+]\s+/m, // Unordered lists
-        /^\d+\.\s+/m, // Numbered lists
-        /^[-*+]\s+\[[x\s]\]/m, // Checkboxes
-        /!\[.*?\]\(.+?\)/, // Images
-        /\|.+\|/, // Tables
-        /^---+$/m, // Horizontal rules
-        /~~.+?~~/, // Strikethrough
-    ];
-
-    const foundPatterns = formattingPatterns.filter(pattern => pattern.test(description));
-
-    console.log(`Found ${foundPatterns.length} formatting patterns in description`);
-    return foundPatterns.length > 0;
-}
-function removeEnhancementFormatting(description) {
-    if (!description) return "";
-
-    console.log(`Cleaning enhancement formatting from description`);
-
-    // Define the enhancement patterns to remove
-    const enhancementPatterns = [
-        /### Heading\s*\n/g,
-        /\*\*Bold text example\*\*\s*\n/g,
-        /\*Italic text example\*\s*\n/g,
-        /> This is a quote block for important notes\s*\n/g,
-        /`Code snippet example`\s*\n/g,
-        /\[Link example\]\(https:\/\/github\.com\)\s*\n/g,
-        /- Unordered list item 1\s*\n- Unordered list item 2\s*\n- Unordered list item 3\s*\n/g,
-        /1\. Numbered list item 1\s*\n2\. Numbered list item 2\s*\n3\. Numbered list item 3\s*\n/g,
-        /\*\*Task Checklist:\*\*\s*\n- \[ \] Task 1 to complete\s*\n- \[ \] Task 2 to complete\s*\n- \[ \] Task 3 to complete\s*\n/g,
-        /^\s*---\s*\n/gm // Remove separator lines
-    ];
-
-    let cleanedDescription = description;
-
-    // Remove each enhancement pattern
-    for (const pattern of enhancementPatterns) {
-        cleanedDescription = cleanedDescription.replace(pattern, '');
+async function processIssueBody(body) {
+    if (!body) {
+        console.log("Issue body is empty, returning empty string");
+        return "";
     }
 
-    // Clean up extra whitespace and newlines
-    cleanedDescription = cleanedDescription
-        .replace(/\n{3,}/g, '\n\n') // Replace 3+ newlines with 2
-        .trim(); // Remove leading/trailing whitespace
-
-    console.log(`Cleaned description from ${description.length} to ${cleanedDescription.length} characters`);
-
-    return cleanedDescription;
-}
-async function processIssueBody(body) {
-    if (!body) return "";
-
-    console.log(`Processing issue body: ${body.substring(0, 200)}...`);
+    console.log(`Processing issue body (${body.length} chars): ${body.substring(0, 200)}...`);
 
     // Find both markdown and HTML image references
     let processedBody = body;
@@ -172,6 +116,7 @@ async function processIssueBody(body) {
 
     // Find markdown images
     let match;
+    markdownImageRegex.lastIndex = 0; // Reset regex
     while ((match = markdownImageRegex.exec(body)) !== null) {
         imageMatches.push({
             fullMatch: match[0],
@@ -201,7 +146,7 @@ async function processIssueBody(body) {
 
     // Log all found images
     imageMatches.forEach((img, index) => {
-        console.log(`Image ${index + 1}: ${img.type} - ${img.imageUrl.substring(0, 60)}...`);
+        console.log(`Image ${index + 1}: ${img.type} - ${img.imageUrl}`);
     });
 
     // Process each image
@@ -248,9 +193,11 @@ async function processIssueBody(body) {
 
         } catch (error) {
             console.warn(`Failed to process image ${i + 1} (${imageUrl}): ${error.message}`);
+            console.warn(`Error stack: ${error.stack}`);
         }
     }
 
+    console.log(`Final processed body length: ${processedBody.length} chars`);
     return processedBody;
 }
 
@@ -269,6 +216,7 @@ async function processGitHubComment(commentBody) {
 
     // Find markdown images
     let match;
+    markdownImageRegex.lastIndex = 0; // Reset regex
     while ((match = markdownImageRegex.exec(commentBody)) !== null) {
         imageMatches.push({
             fullMatch: match[0],
@@ -279,6 +227,7 @@ async function processGitHubComment(commentBody) {
     }
 
     // Find HTML images
+    htmlImageRegex.lastIndex = 0; // Reset regex
     while ((match = htmlImageRegex.exec(commentBody)) !== null) {
         // Extract alt text from the img tag
         const altMatch = match[0].match(/alt=["']([^"']*)["']/i);
@@ -369,17 +318,37 @@ async function getProjectFields(projectId) {
 
 // Get project node
 async function getProjectNode() {
+    console.log(`Looking for project #${PROJECT_NUMBER} for owner: ${OWNER}`);
     const orgQ = `query($login:String!,$number:Int!){ organization(login:$login){ projectV2(number:$number){ id title }}}`;
     const userQ = `query($login:String!,$number:Int!){ user(login:$login){ projectV2(number:$number){ id title }}}`;
-    const asOrg = await octokit.graphql(orgQ, { login: OWNER, number: PROJECT_NUMBER }).catch(() => null);
-    if (asOrg?.organization?.projectV2) return asOrg.organization.projectV2;
-    const asUser = await octokit.graphql(userQ, { login: OWNER, number: PROJECT_NUMBER }).catch(() => null);
-    if (asUser?.user?.projectV2) return asUser.user.projectV2;
+
+    try {
+        const asOrg = await octokit.graphql(orgQ, { login: OWNER, number: PROJECT_NUMBER });
+        if (asOrg?.organization?.projectV2) {
+            console.log(`Found project as organization: ${asOrg.organization.projectV2.title}`);
+            return asOrg.organization.projectV2;
+        }
+    } catch (error) {
+        console.log(`Not found as organization, trying as user...`);
+    }
+
+    try {
+        const asUser = await octokit.graphql(userQ, { login: OWNER, number: PROJECT_NUMBER });
+        if (asUser?.user?.projectV2) {
+            console.log(`Found project as user: ${asUser.user.projectV2.title}`);
+            return asUser.user.projectV2;
+        }
+    } catch (error) {
+        console.log(`Not found as user either`);
+    }
+
     throw new Error(`Project v2 #${PROJECT_NUMBER} not found for ${OWNER}`);
 }
 
 // Get all issues from the project
 async function getProjectIssues(projectId) {
+    console.log(`Fetching issues from project ID: ${projectId}`);
+
     const query = `
     query($projectId:ID!, $cursor:String) {
       node(id:$projectId) {
@@ -471,27 +440,51 @@ async function getProjectIssues(projectId) {
     let hasNextPage = true;
 
     while (hasNextPage) {
+        console.log(`Fetching issues batch${cursor ? ' after cursor: ' + cursor : ' (first batch)'}...`);
         const result = await octokit.graphql(query, { projectId, cursor });
         const items = result.node.items;
 
+        console.log(`Received ${items.nodes.length} items in this batch`);
+
         // Filter for issues only (exclude draft issues and PRs)
-        const issues = items.nodes.filter(item =>
-            item.content &&
-            item.content.number &&
-            item.content.title
-        );
+        const issues = items.nodes.filter(item => {
+            const isValid = item.content &&
+                item.content.number &&
+                item.content.title;
+
+            if (!isValid) {
+                console.log(`Skipping invalid item (no content or missing fields):`,
+                    item.content ? `Issue #${item.content.number}` : 'Draft/Unknown');
+            }
+
+            return isValid;
+        });
+
+        console.log(`${issues.length} valid issues found in this batch`);
+
+        // Log issue details
+        issues.forEach(issue => {
+            console.log(`- Issue #${issue.content.number}: "${issue.content.title}" (State: ${issue.content.state})`);
+        });
 
         allIssues.push(...issues);
 
         hasNextPage = items.pageInfo.hasNextPage;
         cursor = items.pageInfo.endCursor;
+
+        if (hasNextPage) {
+            console.log(`More pages available, continuing...`);
+        }
     }
 
+    console.log(`Total issues found across all batches: ${allIssues.length}`);
     return allIssues;
 }
 
 // Find existing markdown file for an issue number
 function findExistingMarkdownFile(issueNumber) {
+    console.log(`Searching for existing markdown file for issue #${issueNumber}`);
+
     const searchDirs = [TASKS_DIR];
 
     // Add subdirectories to search
@@ -504,24 +497,34 @@ function findExistingMarkdownFile(issueNumber) {
         }
     }
 
+    console.log(`Searching in directories: ${searchDirs.join(', ')}`);
+
     for (const dir of searchDirs) {
-        if (!fs.existsSync(dir)) continue;
+        if (!fs.existsSync(dir)) {
+            console.log(`Directory doesn't exist, skipping: ${dir}`);
+            continue;
+        }
 
         const files = fs.readdirSync(dir).filter(f => f.endsWith('.md'));
+        console.log(`Found ${files.length} .md files in ${dir}`);
+
         for (const file of files) {
             const filePath = path.join(dir, file);
             try {
                 const content = fs.readFileSync(filePath, 'utf8');
                 const parsed = matter(content);
                 if (parsed.data.issue === issueNumber) {
+                    console.log(`Found existing file for issue #${issueNumber}: ${filePath}`);
                     return filePath;
                 }
             } catch (error) {
+                console.log(`Error parsing ${filePath}: ${error.message}`);
                 continue; // Skip files that can't be parsed
             }
         }
     }
 
+    console.log(`No existing file found for issue #${issueNumber}`);
     return null;
 }
 
@@ -529,6 +532,11 @@ function findExistingMarkdownFile(issueNumber) {
 async function createMarkdownFile(issue, projectFields) {
     const issueData = issue.content;
     const fieldValues = issue.fieldValues.nodes;
+
+    console.log(`\n=== Processing Issue #${issueData.number}: "${issueData.title}" ===`);
+    console.log(`Issue state: ${issueData.state}`);
+    console.log(`Issue body length: ${issueData.body ? issueData.body.length : 0} chars`);
+    console.log(`Comments count: ${issueData.comments.nodes.length}`);
 
     // Build field mapping
     const fieldMap = {};
@@ -541,12 +549,16 @@ async function createMarkdownFile(issue, projectFields) {
         }
     }
 
+    console.log(`Project fields for issue #${issueData.number}:`, Object.keys(fieldMap));
+    console.log(`Status: "${fieldMap[STATUS_FIELD_NAME] || 'None'}"`);
+
     // Process body for images
+    console.log(`Processing issue body for images...`);
     const processedBody = await processIssueBody(issueData.body);
 
-    // Process comments for history tracking - only process comments that belong to THIS issue
+    // Process comments for history tracking
     async function processCommentsForIssue(issueData, issueNumber) {
-        console.log(`Processing comments for issue #${issueNumber}`);
+        console.log(`Processing ${issueData.comments.nodes.length} comments for issue #${issueNumber}`);
 
         const allComments = issueData.comments.nodes
             .filter(comment => !comment.body.includes("**Relationships**") &&
@@ -559,7 +571,7 @@ async function createMarkdownFile(issue, projectFields) {
                     originalBody: comment.body,
                     createdAt: comment.createdAt,
                     author: comment.author?.login || "unknown",
-                    issueNumber: issueNumber // Track which issue this belongs to
+                    issueNumber: issueNumber
                 };
             });
 
@@ -568,15 +580,17 @@ async function createMarkdownFile(issue, projectFields) {
 
         console.log(`Processed ${processedComments.length} comments for issue #${issueNumber}`);
 
-        // Create comment history entries in the format used by the populate script
+        // Create comment history entries
         const commentHistory = processedComments.map(comment => {
-            const dateOnly = comment.createdAt.split('T')[0]; // Extract YYYY-MM-DD
+            const dateOnly = comment.createdAt.split('T')[0];
             const safeComment = comment.body.replace(/"/g, '\\"').replace(/\n/g, '\\n');
             return `[${dateOnly}][${comment.author}] ${safeComment}`;
         });
 
         return commentHistory;
     }
+
+    const commentHistory = await processCommentsForIssue(issueData, issueData.number);
 
     // Build frontmatter
     const frontmatter = {
@@ -597,15 +611,15 @@ async function createMarkdownFile(issue, projectFields) {
         priority: fieldMap["Priority"] || null,
         sprint: fieldMap["Sprint"] || null,
         milestone: issueData.milestone?.title || null,
-        relationships: [], // This would need more complex parsing
-        comments: [], // Will be populated from existing file or left empty
+        relationships: [],
+        comments: [],
         commentHistory: commentHistory
     };
 
     // Remove null values and empty arrays that should be omitted
     Object.keys(frontmatter).forEach(key => {
         if (frontmatter[key] === null ||
-            (Array.isArray(frontmatter[key]) && frontmatter[key].length === 0)) {
+            (Array.isArray(frontmatter[key]) && frontmatter[key].length === 0 && key !== 'comments')) {
             delete frontmatter[key];
         }
     });
@@ -615,17 +629,17 @@ async function createMarkdownFile(issue, projectFields) {
     let isExistingFile = !!filePath;
 
     if (filePath) {
+        console.log(`Found existing file: ${filePath}`);
+
         // Check if existing file needs updating
         const existingRaw = fs.readFileSync(filePath, "utf8");
         const existingParsed = matter(existingRaw);
 
         // Preserve existing commentHistory and relationships from local file
         if (existingParsed.data.commentHistory) {
-            // Merge existing comment history with new comments from GitHub
             const existingHistory = Array.isArray(existingParsed.data.commentHistory) ?
                 existingParsed.data.commentHistory : [];
 
-            // Create a set of existing comment content to avoid duplicates
             const existingCommentContent = new Set();
             for (const entry of existingHistory) {
                 if (typeof entry === 'string') {
@@ -637,7 +651,6 @@ async function createMarkdownFile(issue, projectFields) {
                 }
             }
 
-            // Only add new comments that aren't already in history
             const newComments = commentHistory.filter(entry => {
                 const match = entry.match(/\[.*?\]\[.*?\]\s*(.*)/);
                 if (match) {
@@ -647,7 +660,6 @@ async function createMarkdownFile(issue, projectFields) {
                 return true;
             });
 
-            // Combine existing and new
             frontmatter.commentHistory = [...existingHistory, ...newComments];
         }
 
@@ -655,7 +667,6 @@ async function createMarkdownFile(issue, projectFields) {
             frontmatter.relationships = existingParsed.data.relationships;
         }
 
-        // Preserve any pending comments in the comments array (not yet posted)
         if (existingParsed.data.comments && Array.isArray(existingParsed.data.comments)) {
             frontmatter.comments = existingParsed.data.comments;
         }
@@ -667,6 +678,16 @@ async function createMarkdownFile(issue, projectFields) {
             existingParsed.data.status !== frontmatter.status ||
             JSON.stringify(existingParsed.data.assignees) !== JSON.stringify(frontmatter.assignees) ||
             JSON.stringify(existingParsed.data.labels) !== JSON.stringify(frontmatter.labels);
+
+        console.log(`Update needed: ${needsUpdate}`);
+        if (needsUpdate) {
+            console.log(`Changes detected:
+- Title: ${existingParsed.data.title !== frontmatter.title}
+- Description: ${existingParsed.data.description !== frontmatter.description}  
+- Status: ${existingParsed.data.status !== frontmatter.status}
+- Assignees: ${JSON.stringify(existingParsed.data.assignees) !== JSON.stringify(frontmatter.assignees)}
+- Labels: ${JSON.stringify(existingParsed.data.labels) !== JSON.stringify(frontmatter.labels)}`);
+        }
 
         if (!needsUpdate) {
             console.log(`No changes needed for issue #${issueData.number} (${path.basename(filePath)})`);
@@ -682,9 +703,9 @@ async function createMarkdownFile(issue, projectFields) {
             if (path.dirname(filePath) !== newDir) {
                 if (!fs.existsSync(newDir)) {
                     fs.mkdirSync(newDir, { recursive: true });
+                    console.log(`Created status directory: ${newDir}`);
                 }
 
-                // Move the file
                 fs.renameSync(filePath, newPath);
                 filePath = newPath;
                 console.log(`Moved file to new status folder: ${path.relative(process.cwd(), filePath)}`);
@@ -692,13 +713,12 @@ async function createMarkdownFile(issue, projectFields) {
         }
 
     } else {
-        // Create new file - only do this for issues that don't have existing markdown files
+        // Create new file
         console.log(`Creating new markdown file for issue #${issueData.number} (no existing file found)`);
 
-        // For new files, keep comments empty so they can be added locally
         frontmatter.comments = [];
 
-        // Generate filename based on your naming pattern
+        // Generate filename based on title
         const safeTitle = issueData.title
             .replace(/[^\w\s-]/g, '')
             .replace(/\s+/g, '-')
@@ -713,6 +733,7 @@ async function createMarkdownFile(issue, projectFields) {
             targetDir = path.join(TASKS_DIR, safeStatus);
             if (!fs.existsSync(targetDir)) {
                 fs.mkdirSync(targetDir, { recursive: true });
+                console.log(`Created status directory: ${targetDir}`);
             }
         }
 
@@ -726,9 +747,11 @@ async function createMarkdownFile(issue, projectFields) {
             filePath = path.join(targetDir, `${name}-${counter}${ext}`);
             counter++;
         }
+
+        console.log(`New file will be created at: ${filePath}`);
     }
 
-    // Create markdown content (no additional content section)
+    // Create markdown content
     const markdownContent = matter.stringify("", frontmatter);
 
     // Write file
@@ -740,40 +763,61 @@ async function createMarkdownFile(issue, projectFields) {
 
 // Main sync function
 async function syncIssuesFromGitHub() {
-    console.log("Starting GitHub issues sync...");
+    console.log("=== Starting GitHub issues sync ===");
+    console.log(`Owner: ${OWNER}`);
+    console.log(`Project Number: ${PROJECT_NUMBER}`);
+    console.log(`Tasks Directory: ${TASKS_DIR}`);
+    console.log(`Images Directory: ${IMAGES_DIR}`);
+    console.log(`Status Field: ${STATUS_FIELD_NAME}`);
 
     ensureDirectories();
 
     try {
         // Get project and its issues
+        console.log("\n=== Getting Project Information ===");
         const project = await getProjectNode();
+
+        console.log("\n=== Getting Project Fields ===");
         const projectFields = await getProjectFields(project.id);
+        console.log(`Available project fields: ${projectFields.map(f => f.name).join(', ')}`);
+
+        console.log("\n=== Getting Project Issues ===");
         const projectIssues = await getProjectIssues(project.id);
 
-        console.log(`Found ${projectIssues.length} issues in project`);
+        console.log(`\n=== Processing ${projectIssues.length} issues ===`);
 
         let updatedCount = 0;
+        let skippedCount = 0;
 
         // Process each issue
         for (const issue of projectIssues) {
             if (!issue.content || issue.content.state === 'CLOSED') {
-                continue; // Skip closed issues or invalid items
+                console.log(`Skipping closed/invalid issue: ${issue.content ? `#${issue.content.number}` : 'Unknown'}`);
+                skippedCount++;
+                continue;
             }
 
             try {
                 const wasUpdated = await createMarkdownFile(issue, projectFields);
                 if (wasUpdated) updatedCount++;
             } catch (error) {
-                console.warn(`Failed to process issue #${issue.content.number}: ${error.message}`);
+                console.error(`Failed to process issue #${issue.content.number}: ${error.message}`);
+                console.error(`Stack: ${error.stack}`);
             }
         }
 
-        console.log(`Sync completed. ${updatedCount} files updated.`);
+        console.log(`\n=== Sync Summary ===`);
+        console.log(`Total issues found: ${projectIssues.length}`);
+        console.log(`Files updated/created: ${updatedCount}`);
+        console.log(`Issues skipped: ${skippedCount}`);
+        console.log(`Sync completed successfully.`);
 
         return updatedCount;
 
     } catch (error) {
-        console.error("Sync failed:", error.message);
+        console.error("=== Sync failed ===");
+        console.error("Error:", error.message);
+        console.error("Stack:", error.stack);
         throw error;
     }
 }
@@ -784,5 +828,6 @@ async function syncIssuesFromGitHub() {
         await syncIssuesFromGitHub();
     } catch (error) {
         core.setFailed(`Sync failed: ${error.message}`);
+        process.exit(1);
     }
 })();
