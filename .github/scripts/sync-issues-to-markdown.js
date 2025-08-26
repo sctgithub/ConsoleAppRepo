@@ -144,32 +144,49 @@ async function processGitHubComment(commentBody) {
 
     console.log(`Processing GitHub comment: ${commentBody.substring(0, 100)}...`);
 
-    // Find all image references in markdown format
-    const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
-    let processedComment = commentBody;
-    let match;
+    // Find both markdown and HTML image references
+    const markdownImageRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
+    const htmlImageRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
 
+    let processedComment = commentBody;
     const imageMatches = [];
-    while ((match = imageRegex.exec(commentBody)) !== null) {
+
+    // Find markdown images
+    let match;
+    while ((match = markdownImageRegex.exec(commentBody)) !== null) {
         imageMatches.push({
             fullMatch: match[0],
             altText: match[1],
-            imageUrl: match[2]
+            imageUrl: match[2],
+            type: 'markdown'
         });
     }
 
-    console.log(`Found ${imageMatches.length} images in comment`);
+    // Find HTML images
+    while ((match = htmlImageRegex.exec(commentBody)) !== null) {
+        // Extract alt text from the img tag
+        const altMatch = match[0].match(/alt=["']([^"']*)["']/i);
+        const altText = altMatch ? altMatch[1] : 'Image';
+
+        imageMatches.push({
+            fullMatch: match[0],
+            altText: altText,
+            imageUrl: match[1],
+            type: 'html'
+        });
+    }
+
+    console.log(`Found ${imageMatches.length} images in comment (markdown + HTML)`);
 
     for (const imageMatch of imageMatches) {
-        const { fullMatch, altText, imageUrl } = imageMatch;
+        const { fullMatch, altText, imageUrl, type } = imageMatch;
 
         try {
-            console.log(`Processing image URL: ${imageUrl}`);
+            console.log(`Processing ${type} image URL: ${imageUrl}`);
 
             // Skip if it's already a GitHub raw URL from our own repo
             if (imageUrl.includes('raw.githubusercontent.com') && imageUrl.includes('images/uploads/')) {
                 console.log('Image is already from our repo, converting to local reference');
-                // Convert back to local reference
                 const fileName = path.basename(imageUrl);
                 const localReference = `[IMAGE:Images/${fileName}]`;
                 processedComment = processedComment.replace(fullMatch, `${altText ? altText + ': ' : ''}${localReference}`);
@@ -191,7 +208,7 @@ async function processGitHubComment(commentBody) {
             const localReference = `[IMAGE:${relativePath}]`;
             processedComment = processedComment.replace(fullMatch, `${altText ? altText + ': ' : ''}${localReference}`);
 
-            console.log(`Successfully processed image: ${fullMatch} -> ${localReference}`);
+            console.log(`Successfully processed ${type} image: ${imageUrl} -> ${localReference}`);
 
         } catch (error) {
             console.warn(`Failed to download comment image ${imageUrl}: ${error.message}`);
@@ -450,7 +467,7 @@ async function createMarkdownFile(issue, projectFields) {
     // Remove null values and empty arrays that should be omitted
     Object.keys(frontmatter).forEach(key => {
         if (frontmatter[key] === null ||
-            (Array.isArray(frontmatter[key]) && frontmatter[key].length === 0 && key !== 'commentHistory')) {
+            (Array.isArray(frontmatter[key]) && frontmatter[key].length === 0)) {
             delete frontmatter[key];
         }
     });
