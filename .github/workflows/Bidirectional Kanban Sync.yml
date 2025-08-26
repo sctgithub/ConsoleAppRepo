@@ -36,9 +36,11 @@ jobs:
         uses: actions/setup-node@v4   
         with:
           node-version: '18'
+          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm install gray-matter @actions/github @actions/core
+      - name: Install dependencies with retry
+        run: |
+          npm install --no-audit --no-fund || sleep 30 && npm install --no-audit --no-fund || sleep 60 && npm install --no-audit --no-fund
 
       - name: Pull latest changes first
         run: |
