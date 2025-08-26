@@ -2,7 +2,7 @@
 title: 67-Card
 description: Description 1
 issue: 67
-status: In progress
+status: Backlog
 size: S
 estimate: 15
 devHours: 5
