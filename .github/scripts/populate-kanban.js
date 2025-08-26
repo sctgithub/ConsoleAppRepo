@@ -19,6 +19,35 @@ const octokit = github.getOctokit(token);
 
 const mdToBool = v => typeof v === "string" ? v.trim().length > 0 : !!v;
 
+// Function to enhance description with rich markdown formatting
+function enhanceDescription(originalDescription) {
+    const richFormatting = `
+### Heading
+**Bold text example**
+*Italic text example*
+> This is a quote block for important notes
+\`Code snippet example\`
+[Link example](https://github.com)
+- Unordered list item 1
+- Unordered list item 2
+- Unordered list item 3
+
+1. Numbered list item 1
+2. Numbered list item 2
+3. Numbered list item 3
+
+**Task Checklist:**
+- [ ] Task 1 to complete
+- [ ] Task 2 to complete  
+- [ ] Task 3 to complete
+
+---
+
+${originalDescription || ""}`;
+
+    return richFormatting.trim();
+}
+
 // ---------- GraphQL helpers ----------
 async function getProjectNode() {
     const orgQ = `query($login:String!,$number:Int!){ organization(login:$login){ projectV2(number:$number){ id title }}}`;
@@ -60,7 +89,7 @@ async function addIssueToProject(projectId, issueNodeId) {
     const res = await octokit.graphql(m, { projectId, contentId: issueNodeId });
     return res.addProjectV2ItemById.item.id;
 }
- 
+
 async function setFieldValue({ projectId, itemId, field, value }) {
     if (!field) return;
     const base = { projectId, itemId, fieldId: field.id };
@@ -180,23 +209,30 @@ async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, file
 
             // Create new sub-issue if it doesn't exist
             if (!subIssueData) {
+                // Enhanced sub-issue description with rich formatting
+                const enhancedSubDescription = enhanceDescription(subIssue.description);
+                const subIssueBody = `${enhancedSubDescription}\n\n**Parent issue:** #${parentIssueNumber}`;
+
                 const created = await octokit.rest.issues.create({
                     owner,
                     repo,
                     title: subIssue.title || "Sub-task",
-                    body: `${subIssue.description || ""}\n\nParent issue: #${parentIssueNumber}`
+                    body: subIssueBody
                 });
                 subIssueData = created.data;
                 subIssues[i].issue = created.data.number; // Update the subIssue object
                 console.log(`Created sub-issue #${created.data.number} for parent #${parentIssueNumber}`);
             } else {
-                // Update existing sub-issue title and body
+                // Update existing sub-issue title and body with enhanced formatting
+                const enhancedSubDescription = enhanceDescription(subIssue.description);
+                const subIssueBody = `${enhancedSubDescription}\n\n**Parent issue:** #${parentIssueNumber}`;
+
                 await updateIssueContent({
                     owner,
                     repo,
                     issueNumber: subIssue.issue,
                     title: subIssue.title || "Sub-task",
-                    body: `${subIssue.description || ""}\n\nParent issue: #${parentIssueNumber}`
+                    body: subIssueBody
                 });
             }
 
@@ -294,8 +330,9 @@ async function findOrCreateIssue({ owner, repo, filePath, fmTitle, body, existin
     const hit = search.data.items.find(i => i.title === fmTitle && !i.pull_request);
     if (hit) return { number: hit.number, node_id: hit.node_id, html_url: hit.html_url, created: false };
 
-    // Create
-    const created = await octokit.rest.issues.create({ owner, repo, title: fmTitle, body });
+    // Create with enhanced description
+    const enhancedBody = enhanceDescription(body);
+    const created = await octokit.rest.issues.create({ owner, repo, title: fmTitle, body: enhancedBody });
     // Write back issue number into the md file immediately
     const raw = fs.readFileSync(filePath, "utf8");
     const parsed = matter(raw);
@@ -710,11 +747,12 @@ function walkMdFilesRel(dir) {
         const issue = await findOrCreateIssue({
             owner, repo, filePath, fmTitle: title, body, existingIssue: data.issue
         });
-        console.log(`${issue.created ? "Created" : "Using"} issue #${issue.number} – ${issue.html_url}`);
+        console.log(`${issue.created ? "Created" : "Using"} issue #${issue.number} — ${issue.html_url}`);
 
-        // ALWAYS update title and body (even for existing issues)
+        // ALWAYS update title and body (even for existing issues) with enhanced description
         if (!issue.created) {
-            await updateIssueContent({ owner, repo, issueNumber: issue.number, title, body });
+            const enhancedBody = enhanceDescription(body);
+            await updateIssueContent({ owner, repo, issueNumber: issue.number, title, body: enhancedBody });
         }
 
         // Add to project
