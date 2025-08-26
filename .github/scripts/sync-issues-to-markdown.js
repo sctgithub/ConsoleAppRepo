@@ -716,7 +716,7 @@ async function syncIssuesFromGitHub() {
         console.error("Sync failed:", error.message);
         throw error;
     }
-}
+} 
 
 // Run the sync
 (async () => {
