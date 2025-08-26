@@ -25,7 +25,7 @@ description: |-
   - [ ] check2
   - [ ] check3
 issue: 59
-status: Backlog
+status: Ready
 size: S
 estimate: 15
 devHours: 5
