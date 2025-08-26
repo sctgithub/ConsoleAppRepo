@@ -17,6 +17,7 @@
     <Folder Include="Tasks\Archive\" />
     <Folder Include="Tasks\Backlog\" />
     <Folder Include="Tasks\Done\" />
+    <Folder Include="Tasks\In progress\" />
     <Folder Include="Tasks\In review\" />
     <Folder Include="Tasks\Images\" />
     <Folder Include="Tasks\Ready for deploy to test\" />
