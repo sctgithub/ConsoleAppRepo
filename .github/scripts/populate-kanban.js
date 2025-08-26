@@ -360,7 +360,7 @@ async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, file
     return createdSubIssues;
 }
 
-async function findOrCreateIssue({ owner, repo, filePath, fmTitle, body, existingIssue }) {
+async function findOrCreateIssue({ owner, repo, filePath, fmTitle, body, existingIssue, frontmatterData }) {
     if (existingIssue) {
         // Verify it exists
         try {
@@ -369,14 +369,11 @@ async function findOrCreateIssue({ owner, repo, filePath, fmTitle, body, existin
         } catch { /* fall through to create */ }
     }
 
-    // Try exact-title match to reuse
-    const q = `repo:${owner}/${repo} is:issue "${fmTitle.replace(/"/g, '\\"')}" in:title`;
-    const search = await octokit.rest.search.issuesAndPullRequests({ q });
-    const hit = search.data.items.find(i => i.title === fmTitle && !i.pull_request);
-    if (hit) return { number: hit.number, node_id: hit.node_id, html_url: hit.html_url, created: false };
+    // Skip the deprecated search API and create new issue directly
+    console.log(`Creating new issue for: ${fmTitle}`);
 
     // Create with selective description enhancement
-    const enhancedBody = enhanceDescriptionSelectively(body, frontmatterData);
+    const enhancedBody = enhanceDescriptionSelectively(body, frontmatterData || {});
     const created = await octokit.rest.issues.create({ owner, repo, title: fmTitle, body: enhancedBody });
     // Write back issue number into the md file immediately
     const raw = fs.readFileSync(filePath, "utf8");
