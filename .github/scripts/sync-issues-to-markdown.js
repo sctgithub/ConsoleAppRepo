@@ -237,6 +237,41 @@ async function getProjectIssues(projectId) {
     return allIssues;
 }
 
+// Find existing markdown file for an issue number
+function findExistingMarkdownFile(issueNumber) {
+    const searchDirs = [TASKS_DIR];
+
+    // Add subdirectories to search
+    if (fs.existsSync(TASKS_DIR)) {
+        const entries = fs.readdirSync(TASKS_DIR, { withFileTypes: true });
+        for (const entry of entries) {
+            if (entry.isDirectory()) {
+                searchDirs.push(path.join(TASKS_DIR, entry.name));
+            }
+        }
+    }
+
+    for (const dir of searchDirs) {
+        if (!fs.existsSync(dir)) continue;
+
+        const files = fs.readdirSync(dir).filter(f => f.endsWith('.md'));
+        for (const file of files) {
+            const filePath = path.join(dir, file);
+            try {
+                const content = fs.readFileSync(filePath, 'utf8');
+                const parsed = matter(content);
+                if (parsed.data.issue === issueNumber) {
+                    return filePath;
+                }
+            } catch (error) {
+                continue; // Skip files that can't be parsed
+            }
+        }
+    }
+
+    return null;
+}
+
 // Create or update markdown file for an issue
 async function createMarkdownFile(issue, projectFields) {
     const issueData = issue.content;
@@ -294,30 +329,22 @@ async function createMarkdownFile(issue, projectFields) {
         }
     });
 
-    // Generate filename
-    const safeTitle = issueData.title
-        .replace(/[^\w\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .toLowerCase()
-        .substring(0, 50);
-    const filename = `${issueData.number}-${safeTitle}.md`;
+    // Try to find existing file first
+    let filePath = findExistingMarkdownFile(issueData.number);
+    let isExistingFile = !!filePath;
 
-    // Determine folder based on status
-    let targetDir = TASKS_DIR;
-    if (frontmatter.status) {
-        const safeStatus = String(frontmatter.status).trim().replace(/[/\\<>:"|?*]+/g, "_");
-        targetDir = path.join(TASKS_DIR, safeStatus);
-        if (!fs.existsSync(targetDir)) {
-            fs.mkdirSync(targetDir, { recursive: true });
-        }
-    }
-
-    const filePath = path.join(targetDir, filename);
-
-    // Check if file already exists and compare
-    if (fs.existsSync(filePath)) {
+    if (filePath) {
+        // Check if existing file needs updating
         const existingRaw = fs.readFileSync(filePath, "utf8");
         const existingParsed = matter(existingRaw);
+
+        // Preserve existing commentHistory and relationships
+        if (existingParsed.data.commentHistory) {
+            frontmatter.commentHistory = existingParsed.data.commentHistory;
+        }
+        if (existingParsed.data.relationships) {
+            frontmatter.relationships = existingParsed.data.relationships;
+        }
 
         // Compare key fields to see if update is needed
         const needsUpdate =
@@ -328,13 +355,59 @@ async function createMarkdownFile(issue, projectFields) {
             JSON.stringify(existingParsed.data.labels) !== JSON.stringify(frontmatter.labels);
 
         if (!needsUpdate) {
-            console.log(`No changes needed for issue #${issueData.number}`);
+            console.log(`No changes needed for issue #${issueData.number} (${path.basename(filePath)})`);
             return false;
         }
 
-        // Preserve existing commentHistory
-        if (existingParsed.data.commentHistory) {
-            frontmatter.commentHistory = existingParsed.data.commentHistory;
+        // Check if file needs to be moved due to status change
+        if (frontmatter.status && existingParsed.data.status !== frontmatter.status) {
+            const safeStatus = String(frontmatter.status).trim().replace(/[/\\<>:"|?*]+/g, "_");
+            const newDir = path.join(TASKS_DIR, safeStatus);
+            const newPath = path.join(newDir, path.basename(filePath));
+
+            if (path.dirname(filePath) !== newDir) {
+                if (!fs.existsSync(newDir)) {
+                    fs.mkdirSync(newDir, { recursive: true });
+                }
+
+                // Move the file
+                fs.renameSync(filePath, newPath);
+                filePath = newPath;
+                console.log(`Moved file to new status folder: ${path.relative(process.cwd(), filePath)}`);
+            }
+        }
+
+    } else {
+        // Create new file - only do this for issues that don't have existing markdown files
+        console.log(`Creating new markdown file for issue #${issueData.number} (no existing file found)`);
+
+        // Generate filename based on your naming pattern
+        const safeTitle = issueData.title
+            .replace(/[^\w\s-]/g, '')
+            .replace(/\s+/g, '-')
+            .toLowerCase()
+            .substring(0, 30);
+        const filename = `${safeTitle}.md`;
+
+        // Determine folder based on status
+        let targetDir = TASKS_DIR;
+        if (frontmatter.status) {
+            const safeStatus = String(frontmatter.status).trim().replace(/[/\\<>:"|?*]+/g, "_");
+            targetDir = path.join(TASKS_DIR, safeStatus);
+            if (!fs.existsSync(targetDir)) {
+                fs.mkdirSync(targetDir, { recursive: true });
+            }
+        }
+
+        filePath = path.join(targetDir, filename);
+
+        // Ensure unique filename if conflict
+        let counter = 1;
+        while (fs.existsSync(filePath)) {
+            const name = path.parse(filename).name;
+            const ext = path.parse(filename).ext;
+            filePath = path.join(targetDir, `${name}-${counter}${ext}`);
+            counter++;
         }
     }
 
@@ -344,7 +417,7 @@ async function createMarkdownFile(issue, projectFields) {
 
     // Write file
     fs.writeFileSync(filePath, markdownContent);
-    console.log(`${fs.existsSync(filePath) ? 'Updated' : 'Created'} markdown file: ${path.relative(process.cwd(), filePath)}`);
+    console.log(`${isExistingFile ? 'Updated' : 'Created'} markdown file: ${path.relative(process.cwd(), filePath)}`);
 
     return true;
 }
