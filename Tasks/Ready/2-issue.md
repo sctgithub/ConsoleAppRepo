@@ -1,6 +1,34 @@
 ---
 title: 2-Issue
-description: This is my 2nd issue
+description: |-
+  ### Heading
+
+  **Bold text example**
+
+  *Italic text example*
+
+  > This is a quote block for important notes
+
+  `Code snippet example`
+
+  [Link example](https://github.com)
+
+  - Unordered list item 1
+  - Unordered list item 2
+  - Unordered list item 3
+
+  1. Numbered list item 1
+  2. Numbered list item 2
+  3. Numbered list item 3
+
+  **Task Checklist:**
+  - [ ] Task 1 to complete
+  - [ ] Task 2 to complete
+  - [ ] Task 3 to complete
+
+  ---
+
+  This is my 2nd issue
 issue: 60
 status: Ready
 size: XS
@@ -19,6 +47,9 @@ priority: High
 sprint: Sprint 1
 commentHistory:
   - '[2025-08-26][sctgithub] Image: [IMAGE:Images/github_image_aHR0cHM6.png]'
+  - >-
+    [2025-08-26][sctgithub] Image : \n\nImage:
+    [IMAGE:Images/github_image_aHR0cHM6.png]
 comments: []
 ---
 
