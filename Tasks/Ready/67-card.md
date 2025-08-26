@@ -1,6 +1,14 @@
 ---
 title: 67-Card
 description: |-
+  > This is a quote block for important notes
+
+  `Code snippet example`
+
+  [Link example](https://github.com)
+
+  ---
+
   ### Hello
   **BBBBB**
   _IIIII_
