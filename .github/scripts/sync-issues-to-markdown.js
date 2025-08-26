@@ -32,15 +32,16 @@ async function downloadImage(imageUrl, fileName) {
     return new Promise((resolve, reject) => {
         const filePath = path.join(IMAGES_DIR, fileName);
 
-        console.log(`Attempting to download image: ${imageUrl} -> ${filePath}`);
+        console.log(`Checking for existing image: ${filePath}`);
 
         // Check if file already exists
         if (fs.existsSync(filePath)) {
-            console.log(`Image already exists: ${fileName}`);
+            console.log(`Image already exists, skipping download: ${fileName}`);
             resolve(path.relative(TASKS_DIR, filePath));
             return;
         }
 
+        console.log(`Downloading new image: ${imageUrl} -> ${filePath}`);
         const file = fs.createWriteStream(filePath);
 
         // Handle both http and https URLs
@@ -193,13 +194,25 @@ async function processGitHubComment(commentBody) {
                 continue;
             }
 
-            // Extract filename from URL or generate one
-            let fileName = path.basename(imageUrl.split('?')[0]);
-            if (!fileName.match(/\.(jpg|jpeg|png|gif|svg|webp)$/i)) {
-                fileName = `comment_image_${Date.now()}.png`;
+            // Check if this comment already contains a local image reference for this image
+            if (processedComment.includes('[IMAGE:Images/')) {
+                console.log('Comment already contains local image reference, skipping');
+                continue;
             }
 
-            console.log(`Downloading image as: ${fileName}`);
+            // Generate a deterministic filename based on the URL to avoid duplicates
+            const urlHash = Buffer.from(imageUrl).toString('base64').replace(/[+/=]/g, '').substring(0, 8);
+            let fileName = path.basename(imageUrl.split('?')[0]);
+
+            if (!fileName.match(/\.(jpg|jpeg|png|gif|svg|webp)$/i)) {
+                fileName = `github_image_${urlHash}.png`;
+            } else {
+                const ext = path.extname(fileName);
+                const name = path.basename(fileName, ext);
+                fileName = `${name}_${urlHash}${ext}`;
+            }
+
+            console.log(`Using filename: ${fileName}`);
 
             // Download image and get relative path
             const relativePath = await downloadImage(imageUrl, fileName);
