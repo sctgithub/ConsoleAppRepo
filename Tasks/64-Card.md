@@ -1,5 +1,5 @@
 ﻿---
-title: 64-Task
+title: 64-Card
 description: Description 1
 enhanceDescription: false
 issue: 64
@@ -19,5 +19,5 @@ labels:
 priority: Medium
 sprint: Sprint 1
 commentHistory: []
-comments: Normal Comment 1
+comments: Comment 1
 ---
