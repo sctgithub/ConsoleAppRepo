@@ -9,9 +9,7 @@
 
   <ItemGroup>
     <None Include=".github\scripts\populate-kanban.js" />
-    <None Include=".github\scripts\sync-github-to-md.js" />
     <None Include=".github\workflows\populate-kanban.yml" />
-    <None Include=".github\workflows\sync-github-to-md.yml" />
   </ItemGroup>
 
   <ItemGroup>
