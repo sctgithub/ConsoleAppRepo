@@ -19,7 +19,7 @@ description: |
   - [ ] Task 1 to complete
   - [ ] Task 2 to complete  
   - [ ] Task 3 to complete
-issue: 52
+issue: 53
 status: Ready for deploy to staging
 size: S
 estimate: 20
