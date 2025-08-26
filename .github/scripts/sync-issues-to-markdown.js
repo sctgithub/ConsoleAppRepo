@@ -160,19 +160,22 @@ async function processIssueBody(body) {
                 continue;
             }
 
-            // Generate a deterministic filename based on the URL and position
-            const urlHash = Buffer.from(imageUrl + i.toString()).toString('base64').replace(/[+/=]/g, '').substring(0, 8);
-            let fileName = path.basename(imageUrl.split('?')[0]);
+            // Generate a more unique filename with timestamp and random element
+            const timestamp = Date.now();
+            const random = Math.random().toString(36).substring(2, 6);
+            const urlHash = Buffer.from(imageUrl).toString('hex').substring(0, 8);
 
-            if (!fileName.match(/\.(jpg|jpeg|png|gif|svg|webp)$/i)) {
-                fileName = `issue_image_${urlHash}.png`;
+            let fileName = path.basename(imageUrl.split('?')[0].split('#')[0]);
+
+            if (!fileName || !fileName.match(/\.(jpg|jpeg|png|gif|svg|webp)$/i)) {
+                fileName = `github_image_${timestamp}_${random}_${urlHash}.png`;
             } else {
                 const ext = path.extname(fileName);
                 const name = path.basename(fileName, ext);
-                fileName = `${name}_${urlHash}${ext}`;
+                fileName = `${name}_${timestamp}_${random}${ext}`;
             }
 
-            console.log(`Will download as: ${fileName}`);
+            console.log(`Generated unique filename: ${fileName}`);
 
             // Download image and get relative path
             const relativePath = await downloadImage(imageUrl, fileName);
@@ -481,29 +484,39 @@ async function createMarkdownFile(issue, projectFields) {
     // Process body for images
     const processedBody = await processIssueBody(issueData.body);
 
-    // Process comments for history tracking
-    const allComments = issueData.comments.nodes
-        .filter(comment => !comment.body.includes("**Relationships**") &&
-            !comment.body.includes("**Automated Notes**"))
-        .map(async (comment) => {
-            const processedBody = await processGitHubComment(comment.body);
-            return {
-                body: processedBody,
-                originalBody: comment.body,
-                createdAt: comment.createdAt,
-                author: comment.author?.login || "unknown"
-            };
+    // Process comments for history tracking - only process comments that belong to THIS issue
+    async function processCommentsForIssue(issueData, issueNumber) {
+        console.log(`Processing comments for issue #${issueNumber}`);
+
+        const allComments = issueData.comments.nodes
+            .filter(comment => !comment.body.includes("**Relationships**") &&
+                !comment.body.includes("**Automated Notes**"))
+            .map(async (comment) => {
+                console.log(`Processing comment by ${comment.author?.login || "unknown"} on issue #${issueNumber}`);
+                const processedBody = await processGitHubComment(comment.body);
+                return {
+                    body: processedBody,
+                    originalBody: comment.body,
+                    createdAt: comment.createdAt,
+                    author: comment.author?.login || "unknown",
+                    issueNumber: issueNumber // Track which issue this belongs to
+                };
+            });
+
+        // Wait for all comment processing to complete
+        const processedComments = await Promise.all(allComments);
+
+        console.log(`Processed ${processedComments.length} comments for issue #${issueNumber}`);
+
+        // Create comment history entries in the format used by the populate script
+        const commentHistory = processedComments.map(comment => {
+            const dateOnly = comment.createdAt.split('T')[0]; // Extract YYYY-MM-DD
+            const safeComment = comment.body.replace(/"/g, '\\"').replace(/\n/g, '\\n');
+            return `[${dateOnly}][${comment.author}] ${safeComment}`;
         });
 
-    // Wait for all comment processing to complete
-    const processedComments = await Promise.all(allComments);
-
-    // Create comment history entries in the format used by the populate script
-    const commentHistory = processedComments.map(comment => {
-        const dateOnly = comment.createdAt.split('T')[0]; // Extract YYYY-MM-DD
-        const safeComment = comment.body.replace(/"/g, '\\"').replace(/\n/g, '\\n');
-        return `[${dateOnly}][${comment.author}] ${safeComment}`;
-    });
+        return commentHistory;
+    }
 
     // Build frontmatter
     const frontmatter = {
