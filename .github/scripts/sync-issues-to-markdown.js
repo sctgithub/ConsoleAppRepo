@@ -32,6 +32,8 @@ async function downloadImage(imageUrl, fileName) {
     return new Promise((resolve, reject) => {
         const filePath = path.join(IMAGES_DIR, fileName);
 
+        console.log(`Attempting to download image: ${imageUrl} -> ${filePath}`);
+
         // Check if file already exists
         if (fs.existsSync(filePath)) {
             console.log(`Image already exists: ${fileName}`);
@@ -41,9 +43,25 @@ async function downloadImage(imageUrl, fileName) {
 
         const file = fs.createWriteStream(filePath);
 
-        https.get(imageUrl, (response) => {
+        // Handle both http and https URLs
+        const client = imageUrl.startsWith('https:') ? require('https') : require('http');
+
+        const request = client.get(imageUrl, (response) => {
+            console.log(`Download response status: ${response.statusCode} for ${imageUrl}`);
+
+            if (response.statusCode === 302 || response.statusCode === 301) {
+                // Handle redirects
+                file.close();
+                fs.unlink(filePath, () => { });
+                return downloadImage(response.headers.location, fileName)
+                    .then(resolve)
+                    .catch(reject);
+            }
+
             if (response.statusCode !== 200) {
-                reject(new Error(`Failed to download image: ${response.statusCode}`));
+                file.close();
+                fs.unlink(filePath, () => { });
+                reject(new Error(`Failed to download image: ${response.statusCode} - ${response.statusMessage}`));
                 return;
             }
 
@@ -51,12 +69,28 @@ async function downloadImage(imageUrl, fileName) {
 
             file.on('finish', () => {
                 file.close();
-                console.log(`Downloaded image: ${fileName}`);
+                console.log(`Successfully downloaded image: ${fileName}`);
                 resolve(path.relative(TASKS_DIR, filePath));
             });
-        }).on('error', (err) => {
-            fs.unlink(filePath, () => { }); // Delete partial file
+
+            file.on('error', (err) => {
+                file.close();
+                fs.unlink(filePath, () => { });
+                reject(err);
+            });
+        });
+
+        request.on('error', (err) => {
+            file.close();
+            fs.unlink(filePath, () => { });
             reject(err);
+        });
+
+        request.setTimeout(30000, () => {
+            request.abort();
+            file.close();
+            fs.unlink(filePath, () => { });
+            reject(new Error('Download timeout'));
         });
     });
 }
@@ -108,17 +142,33 @@ async function processIssueBody(body) {
 async function processGitHubComment(commentBody) {
     if (!commentBody) return "";
 
+    console.log(`Processing GitHub comment: ${commentBody.substring(0, 100)}...`);
+
     // Find all image references in markdown format
     const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
     let processedComment = commentBody;
     let match;
 
+    const imageMatches = [];
     while ((match = imageRegex.exec(commentBody)) !== null) {
-        const [fullMatch, altText, imageUrl] = match;
+        imageMatches.push({
+            fullMatch: match[0],
+            altText: match[1],
+            imageUrl: match[2]
+        });
+    }
+
+    console.log(`Found ${imageMatches.length} images in comment`);
+
+    for (const imageMatch of imageMatches) {
+        const { fullMatch, altText, imageUrl } = imageMatch;
 
         try {
+            console.log(`Processing image URL: ${imageUrl}`);
+
             // Skip if it's already a GitHub raw URL from our own repo
             if (imageUrl.includes('raw.githubusercontent.com') && imageUrl.includes('images/uploads/')) {
+                console.log('Image is already from our repo, converting to local reference');
                 // Convert back to local reference
                 const fileName = path.basename(imageUrl);
                 const localReference = `[IMAGE:Images/${fileName}]`;
@@ -132,6 +182,8 @@ async function processGitHubComment(commentBody) {
                 fileName = `comment_image_${Date.now()}.png`;
             }
 
+            console.log(`Downloading image as: ${fileName}`);
+
             // Download image and get relative path
             const relativePath = await downloadImage(imageUrl, fileName);
 
@@ -139,8 +191,11 @@ async function processGitHubComment(commentBody) {
             const localReference = `[IMAGE:${relativePath}]`;
             processedComment = processedComment.replace(fullMatch, `${altText ? altText + ': ' : ''}${localReference}`);
 
+            console.log(`Successfully processed image: ${fullMatch} -> ${localReference}`);
+
         } catch (error) {
             console.warn(`Failed to download comment image ${imageUrl}: ${error.message}`);
+            console.warn('Stack trace:', error.stack);
             // Keep original if download fails
         }
     }
@@ -392,10 +447,10 @@ async function createMarkdownFile(issue, projectFields) {
         commentHistory: commentHistory
     };
 
-    // Remove null values
+    // Remove null values and empty arrays that should be omitted
     Object.keys(frontmatter).forEach(key => {
         if (frontmatter[key] === null ||
-            (Array.isArray(frontmatter[key]) && frontmatter[key].length === 0)) {
+            (Array.isArray(frontmatter[key]) && frontmatter[key].length === 0 && key !== 'commentHistory')) {
             delete frontmatter[key];
         }
     });
