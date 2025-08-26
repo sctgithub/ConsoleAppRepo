@@ -1,6 +1,24 @@
 ---
 title: 1-Issue
 description: |-
+  ### Heading
+
+  **Bold text example**
+
+  *Italic text example*
+
+  > This is a quote block for important notes
+
+  `Code snippet example`
+
+  [Link example](https://github.com)
+
+  1. Numbered list item 1
+  2. Numbered list item 2
+  3. Numbered list item 3
+
+  ---
+
   My 1st Issue
 
   - [ ] check1
