@@ -291,11 +291,22 @@ async function createMarkdownFile(issue, projectFields) {
     // Process body for images
     const processedBody = await processIssueBody(issueData.body);
 
-    // Extract comments (excluding automated ones)
-    const comments = issueData.comments.nodes
+    // Process comments for history tracking
+    const allComments = issueData.comments.nodes
         .filter(comment => !comment.body.includes("**Relationships**") &&
             !comment.body.includes("**Automated Notes**"))
-        .map(comment => comment.body);
+        .map(comment => ({
+            body: comment.body,
+            createdAt: comment.createdAt,
+            author: comment.author?.login || "unknown"
+        }));
+
+    // Create comment history entries in the format used by the populate script
+    const commentHistory = allComments.map(comment => {
+        const dateOnly = comment.createdAt.split('T')[0]; // Extract YYYY-MM-DD
+        const safeComment = comment.body.replace(/"/g, '\\"').replace(/\n/g, '\\n');
+        return `[${dateOnly}][${comment.author}] ${safeComment}`;
+    });
 
     // Build frontmatter
     const frontmatter = {
@@ -317,8 +328,8 @@ async function createMarkdownFile(issue, projectFields) {
         sprint: fieldMap["Sprint"] || null,
         milestone: issueData.milestone?.title || null,
         relationships: [], // This would need more complex parsing
-        comments: comments,
-        commentHistory: []
+        comments: [], // Leave empty - all comments go to commentHistory
+        commentHistory: commentHistory
     };
 
     // Remove null values
@@ -338,12 +349,45 @@ async function createMarkdownFile(issue, projectFields) {
         const existingRaw = fs.readFileSync(filePath, "utf8");
         const existingParsed = matter(existingRaw);
 
-        // Preserve existing commentHistory and relationships
+        // Preserve existing commentHistory and relationships from local file
         if (existingParsed.data.commentHistory) {
-            frontmatter.commentHistory = existingParsed.data.commentHistory;
+            // Merge existing comment history with new comments from GitHub
+            const existingHistory = Array.isArray(existingParsed.data.commentHistory) ?
+                existingParsed.data.commentHistory : [];
+
+            // Create a set of existing comment content to avoid duplicates
+            const existingCommentContent = new Set();
+            for (const entry of existingHistory) {
+                if (typeof entry === 'string') {
+                    const match = entry.match(/\[.*?\]\[.*?\]\s*(.*)/);
+                    if (match) {
+                        const content = match[1].replace(/\\"/g, '"').replace(/\\n/g, '\n');
+                        existingCommentContent.add(content);
+                    }
+                }
+            }
+
+            // Only add new comments that aren't already in history
+            const newComments = commentHistory.filter(entry => {
+                const match = entry.match(/\[.*?\]\[.*?\]\s*(.*)/);
+                if (match) {
+                    const content = match[1].replace(/\\"/g, '"').replace(/\\n/g, '\n');
+                    return !existingCommentContent.has(content);
+                }
+                return true;
+            });
+
+            // Combine existing and new
+            frontmatter.commentHistory = [...existingHistory, ...newComments];
         }
+
         if (existingParsed.data.relationships) {
             frontmatter.relationships = existingParsed.data.relationships;
+        }
+
+        // Preserve any pending comments in the comments array (not yet posted)
+        if (existingParsed.data.comments && Array.isArray(existingParsed.data.comments)) {
+            frontmatter.comments = existingParsed.data.comments;
         }
 
         // Compare key fields to see if update is needed
