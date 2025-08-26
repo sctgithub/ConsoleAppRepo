@@ -1,22 +1,29 @@
-name: Populate Kanban from Markdown
+name: Bidirectional Kanban Sync
 
 on:
   push:
     paths:
       - "Tasks/**/*.md"
+  schedule:
+    # Run sync every hour to catch external changes
+    - cron: '0 */2 *  * *'
+  workflow_dispatch: # Allow manual trigger
 
 permissions:
-  contents: write     # we write back issue number into the file
+  contents: write     # we write back issue numbers and sync files
   issues: write
   pull-requests: write
    
 jobs:
-  create-cards:
+  sync-kanban:
     runs-on: ubuntu-latest
      
     steps:
-      - name: Checkout
+      - name: Checkout with full history
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better git operations
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify PROJECTS_TOKEN
         run: |
@@ -30,10 +37,16 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install deps
+      - name: Install dependencies
         run: npm install gray-matter @actions/github @actions/core
 
-      - name: Populate Project from Markdown
+      - name: Pull latest changes first
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin ${{ github.ref_name }} || echo "No remote changes to pull"
+
+      - name: Populate Project from Local Markdown
         env:
           PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
           OWNER: sctgithub              # org or username that owns the Project v2
@@ -42,5 +55,85 @@ jobs:
           TASKS_DIR: Tasks
           RELATIONSHIP_HEADER: "Relationships"
           COMMENT_HEADER: "Automated Notes"
-          COMMENT_AUTHOR: github.context.actor
         run: node .github/scripts/populate-kanban.js
+
+      - name: Sync Issues from GitHub to Local Markdown
+        env:
+          PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+          OWNER: sctgithub              # org or username that owns the Project v2
+          PROJECT_NUMBER: 8             # project number from UI
+          STATUS_FIELD_NAME: Status     # single-select field driving board columns
+          TASKS_DIR: Tasks
+        run: node .github/scripts/sync-issues-to-markdown.js
+
+      - name: Check for changes after sync
+        id: git-check
+        run: |
+          git add -A
+          if git diff --staged --quiet; then
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            echo "No changes detected after sync"
+          else
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected after sync"
+            git status --porcelain
+          fi
+
+      - name: Commit and push changes
+        if: steps.git-check.outputs.has-changes == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # Try to pull any new remote changes before pushing
+          git pull --rebase origin ${{ github.ref_name }} || echo "No new remote changes"
+          
+          # Commit all changes
+          git add -A
+          git commit -m "Bidirectional sync: Updated markdown files and GitHub issues
+          
+          - Populated GitHub Project from local markdown changes
+          - Synced GitHub issues back to local markdown files  
+          - Downloaded and organized issue attachments
+          - Updated file organization based on status changes
+          
+          Triggered by: ${{ github.event_name }} on ${{ github.ref_name }}"
+          
+          # Push changes with retry logic
+          max_attempts=3
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            if git push origin ${{ github.ref_name }}; then
+              echo "Successfully pushed changes on attempt $attempt"
+              break
+            else
+              echo "Push failed on attempt $attempt"
+              if [ $attempt -eq $max_attempts ]; then
+                echo "Failed to push after $max_attempts attempts"
+                exit 1
+              fi
+              echo "Waiting 10 seconds before retry..."
+              sleep 10
+              git pull --rebase origin ${{ github.ref_name }}
+              attempt=$((attempt + 1))
+            fi
+          done
+
+      - name: Summary
+        run: |
+          echo "## Bidirectional Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Completed Actions:" >> $GITHUB_STEP_SUMMARY
+          echo "- Pushed local markdown changes to GitHub Project" >> $GITHUB_STEP_SUMMARY  
+          echo "- Synced GitHub issues back to local markdown files" >> $GITHUB_STEP_SUMMARY
+          echo "- Downloaded and organized issue attachments to Tasks/Images/" >> $GITHUB_STEP_SUMMARY
+          echo "- Organized files into status-based folders" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.git-check.outputs.has-changes }}" == "true" ]; then
+            echo "### Changes Committed:" >> $GITHUB_STEP_SUMMARY
+            echo "- Local repository updated with latest issue data" >> $GITHUB_STEP_SUMMARY
+            echo "- Next pull will include all synchronized changes" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### No Changes:" >> $GITHUB_STEP_SUMMARY
+            echo "- Repository is already up to date" >> $GITHUB_STEP_SUMMARY
+          fi
