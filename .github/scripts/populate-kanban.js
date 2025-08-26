@@ -376,7 +376,7 @@ async function findOrCreateIssue({ owner, repo, filePath, fmTitle, body, existin
     if (hit) return { number: hit.number, node_id: hit.node_id, html_url: hit.html_url, created: false };
 
     // Create with selective description enhancement
-    const enhancedBody = enhanceDescriptionSelectively(body, data);
+    const enhancedBody = enhanceDescriptionSelectively(body, frontmatterData);
     const created = await octokit.rest.issues.create({ owner, repo, title: fmTitle, body: enhancedBody });
     // Write back issue number into the md file immediately
     const raw = fs.readFileSync(filePath, "utf8");
@@ -790,7 +790,7 @@ function walkMdFilesRel(dir) {
 
         // Ensure issue exists (reusing data.issue if present)
         const issue = await findOrCreateIssue({
-            owner, repo, filePath, fmTitle: title, body, existingIssue: data.issue
+            owner, repo, filePath, fmTitle: title, body, existingIssue: data.issue, frontmatterData: data
         });
         console.log(`${issue.created ? "Created" : "Using"} issue #${issue.number} — ${issue.html_url}`);
 
