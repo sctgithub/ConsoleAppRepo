@@ -1,8 +1,8 @@
 ---
-title: 67-Card
+title: 68-Card
 description: Description 1
-issue: 67
-status: Backlog
+issue: 68
+status: In progress
 size: S
 estimate: 15
 devHours: 5
