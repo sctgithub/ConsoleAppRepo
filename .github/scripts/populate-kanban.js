@@ -19,33 +19,72 @@ const octokit = github.getOctokit(token);
 
 const mdToBool = v => typeof v === "string" ? v.trim().length > 0 : !!v;
 
-// Function to enhance description with rich markdown formatting
-function enhanceDescription(originalDescription) {
-    const richFormatting = `
-### Heading
-**Bold text example**
-*Italic text example*
-> This is a quote block for important notes
-\`Code snippet example\`
-[Link example](https://github.com)
-- Unordered list item 1
-- Unordered list item 2
-- Unordered list item 3
+// Function to selectively enhance description with missing formatting elements
+function enhanceDescriptionSelectively(originalDescription) {
+    if (!originalDescription) originalDescription = "";
 
-1. Numbered list item 1
-2. Numbered list item 2
-3. Numbered list item 3
+    const formatElements = [
+        {
+            check: /^###\s+/m,
+            template: "### Heading"
+        },
+        {
+            check: /\*\*.*?\*\*/,
+            template: "**Bold text example**"
+        },
+        {
+            check: /\*.*?\*/,
+            template: "*Italic text example*"
+        },
+        {
+            check: /^>\s+/m,
+            template: "> This is a quote block for important notes"
+        },
+        {
+            check: /`.*?`/,
+            template: "`Code snippet example`"
+        },
+        {
+            check: /\[.*?\]\(.*?\)/,
+            template: "[Link example](https://github.com)"
+        },
+        {
+            check: /^-\s+/m,
+            template: "- Unordered list item 1\n- Unordered list item 2\n- Unordered list item 3"
+        },
+        {
+            check: /^\d+\.\s+/m,
+            template: "1. Numbered list item 1\n2. Numbered list item 2\n3. Numbered list item 3"
+        },
+        {
+            check: /^-\s+\[\s*[x\s]\]\s+/m,
+            template: "**Task Checklist:**\n- [ ] Task 1 to complete\n- [ ] Task 2 to complete\n- [ ] Task 3 to complete"
+        }
+    ];
 
-**Task Checklist:**
-- [ ] Task 1 to complete
-- [ ] Task 2 to complete  
-- [ ] Task 3 to complete
+    const missingElements = [];
 
----
+    // Check which elements are missing
+    for (const element of formatElements) {
+        if (!element.check.test(originalDescription)) {
+            missingElements.push(element.template);
+        }
+    }
 
-${originalDescription || ""}`;
+    // If no elements are missing, return original
+    if (missingElements.length === 0) {
+        console.log('All formatting elements already present, no enhancement needed');
+        return originalDescription;
+    }
 
-    return richFormatting.trim();
+    // Add missing elements at the top
+    let enhancedDescription = "";
+    if (missingElements.length > 0) {
+        enhancedDescription = missingElements.join("\n\n") + "\n\n---\n\n";
+        console.log(`Added ${missingElements.length} missing formatting elements`);
+    }
+
+    return enhancedDescription + originalDescription;
 }
 
 // ---------- GraphQL helpers ----------
@@ -209,8 +248,8 @@ async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, file
 
             // Create new sub-issue if it doesn't exist
             if (!subIssueData) {
-                // Enhanced sub-issue description with rich formatting
-                const enhancedSubDescription = enhanceDescription(subIssue.description);
+                // Enhanced sub-issue description with selective formatting
+                const enhancedSubDescription = enhanceDescriptionSelectively(subIssue.description);
                 const subIssueBody = `${enhancedSubDescription}\n\n**Parent issue:** #${parentIssueNumber}`;
 
                 const created = await octokit.rest.issues.create({
@@ -223,8 +262,8 @@ async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, file
                 subIssues[i].issue = created.data.number; // Update the subIssue object
                 console.log(`Created sub-issue #${created.data.number} for parent #${parentIssueNumber}`);
             } else {
-                // Update existing sub-issue title and body with enhanced formatting
-                const enhancedSubDescription = enhanceDescription(subIssue.description);
+                // Update existing sub-issue title and body with selective formatting
+                const enhancedSubDescription = enhanceDescriptionSelectively(subIssue.description);
                 const subIssueBody = `${enhancedSubDescription}\n\n**Parent issue:** #${parentIssueNumber}`;
 
                 await updateIssueContent({
@@ -330,8 +369,8 @@ async function findOrCreateIssue({ owner, repo, filePath, fmTitle, body, existin
     const hit = search.data.items.find(i => i.title === fmTitle && !i.pull_request);
     if (hit) return { number: hit.number, node_id: hit.node_id, html_url: hit.html_url, created: false };
 
-    // Create with enhanced description
-    const enhancedBody = enhanceDescription(body);
+    // Create with selective description enhancement
+    const enhancedBody = enhanceDescriptionSelectively(body);
     const created = await octokit.rest.issues.create({ owner, repo, title: fmTitle, body: enhancedBody });
     // Write back issue number into the md file immediately
     const raw = fs.readFileSync(filePath, "utf8");
@@ -749,9 +788,9 @@ function walkMdFilesRel(dir) {
         });
         console.log(`${issue.created ? "Created" : "Using"} issue #${issue.number} — ${issue.html_url}`);
 
-        // ALWAYS update title and body (even for existing issues) with enhanced description
+        // ALWAYS update title and body (even for existing issues) with selective enhancement
         if (!issue.created) {
-            const enhancedBody = enhanceDescription(body);
+            const enhancedBody = enhanceDescriptionSelectively(body);
             await updateIssueContent({ owner, repo, issueNumber: issue.number, title, body: enhancedBody });
         }
 
