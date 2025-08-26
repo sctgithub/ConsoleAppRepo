@@ -1,4 +1,4 @@
-﻿---
+---
 title: 64-Card
 description: Description 1
 enhanceDescription: false
@@ -21,3 +21,4 @@ sprint: Sprint 1
 commentHistory: []
 comments: Comment 1
 ---
+
