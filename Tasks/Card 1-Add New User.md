@@ -1,5 +1,5 @@
 ﻿---
-title: Card 1: Add New User
+title: Card 1-Add New User
 description: |
     ### As an admin, I want to add new users so that they can log in and access the system.
     
