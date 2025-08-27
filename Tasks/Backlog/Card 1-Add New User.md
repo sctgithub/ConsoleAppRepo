@@ -1,6 +1,6 @@
 ---
 title: Card 1-Add New User
-description: >-
+description: >
   ### As an admin, I want to add new users so that they can log in and access
   the system.
 
@@ -25,10 +25,8 @@ description: >-
   - [ ] Database schema update
 
   - [ ] Validation logic
-
-
-  <!-- SYNC-MANAGED -->
-issue: 75
+enhanceDescription: false
+issue: 76
 status: Backlog
 size: L
 estimate: 16
@@ -42,13 +40,14 @@ assignees:
   - sctgithub
 labels:
   - enhancement
-  - auto-sync
 priority: Critical
 sprint: Sprint 1
-comments: []
+relationships: null
 commentHistory:
   - >-
-    [2025-08-27][sctgithub] Image : Screenshot1:
-    [IMAGE:Images/1756314946946-Screenshot1.png]
+    [2025-08-27][sctgithub] Image :
+    ![Screenshot1](https://raw.githubusercontent.com/sctgithub/ConsoleAppRepo/main/images/uploads/1756315333458-Screenshot1.png)
+comments:
+  - 'Image : [IMAGE:../Images/Screenshot1.png]'
 ---
 
