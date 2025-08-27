@@ -23,7 +23,7 @@ function ensureDirectories() {
         fs.mkdirSync(TASKS_DIR, { recursive: true });
         console.log(`Created directory: ${TASKS_DIR}`);
     }
-    if (!fs.existsExists(IMAGES_DIR)) {
+    if (!fs.existsSync(IMAGES_DIR)) {
         fs.mkdirSync(IMAGES_DIR, { recursive: true });
         console.log(`Created directory: ${IMAGES_DIR}`);
     }
