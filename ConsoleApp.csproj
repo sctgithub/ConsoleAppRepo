@@ -21,6 +21,10 @@
     <Folder Include="Tasks\Images\" />
     <Folder Include="Tasks\In progress\" />
     <Folder Include="Tasks\In review\" />
+    <Folder Include="Tasks\In review\" />
+    <Folder Include="Tasks\In testing\" />
+    <Folder Include="Tasks\Ready for deploy to staging\" />
+    <Folder Include="Tasks\Ready for deploy to test\" />
     <Folder Include="Tasks\Ready for deploy to test\" />
     <Folder Include="Tasks\Ready\" />
   </ItemGroup>
