@@ -11,6 +11,7 @@ const STATUS_FIELD_NAME = process.env.STATUS_FIELD_NAME || "Status";
 const TASKS_DIR = process.env.TASKS_DIR || "Tasks";
 const RELATIONSHIP_HEADER = process.env.RELATIONSHIP_HEADER || "Relationships";
 const COMMENT_HEADER = process.env.COMMENT_HEADER || "Automated Notes";
+const SYNC_LABEL = "auto-sync"; // Label to identify sync-managed issues
 
 if (!token) { core.setFailed("PROJECTS_TOKEN missing"); process.exit(1); }
 if (!OWNER || !PROJECT_NUMBER) { core.setFailed("OWNER/PROJECT_NUMBER missing"); process.exit(1); }
@@ -124,6 +125,67 @@ async function getProjectFields(projectId) {
     return { fields, map };
 }
 
+// Get all issues from the project (for deletion detection)
+async function getProjectIssues(projectId) {
+    console.log(`Fetching issues from project ID: ${projectId} for deletion detection`);
+
+    const query = `
+    query($projectId:ID!, $cursor:String) {
+      node(id:$projectId) {
+        ... on ProjectV2 {
+          items(first:100, after:$cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              id
+              content {
+                ... on Issue {
+                  id
+                  number
+                  title
+                  body
+                  state
+                  labels(first:20) {
+                    nodes {
+                      name
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }`;
+
+    let allIssues = [];
+    let cursor = null;
+    let hasNextPage = true;
+
+    while (hasNextPage) {
+        const result = await octokit.graphql(query, { projectId, cursor });
+        const items = result.node.items;
+
+        // Filter for issues only (exclude draft issues and PRs)
+        const issues = items.nodes.filter(item => {
+            return item.content &&
+                item.content.number &&
+                item.content.title &&
+                item.content.state !== 'CLOSED';
+        });
+
+        allIssues.push(...issues);
+
+        hasNextPage = items.pageInfo.hasNextPage;
+        cursor = items.pageInfo.endCursor;
+    }
+
+    console.log(`Found ${allIssues.length} open issues in project for deletion check`);
+    return allIssues;
+}
+
 async function addIssueToProject(projectId, issueNodeId) {
     const m = `
     mutation($projectId:ID!,$contentId:ID!){
@@ -196,7 +258,13 @@ async function ensureLabels({ owner, repo, labels }) {
 }
 
 async function setIssueBasics({ owner, repo, issueNumber, assignees, labels, milestoneTitle }) {
-    if (labels?.length) await ensureLabels({ owner, repo, labels });
+    // Ensure sync label is always included
+    const allLabels = Array.isArray(labels) ? [...labels] : [];
+    if (!allLabels.includes(SYNC_LABEL)) {
+        allLabels.push(SYNC_LABEL);
+    }
+
+    await ensureLabels({ owner, repo, labels: allLabels });
     let milestone = undefined;
     if (milestoneTitle) {
         const m = await octokit.rest.issues.listMilestones({ owner, repo, state: "open" });
@@ -205,7 +273,7 @@ async function setIssueBasics({ owner, repo, issueNumber, assignees, labels, mil
     }
     await octokit.rest.issues.update({
         owner, repo, issue_number: issueNumber,
-        assignees, labels, milestone
+        assignees, labels: allLabels, milestone
     });
 }
 
@@ -256,13 +324,14 @@ async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, file
             if (!subIssueData) {
                 // Enhanced sub-issue description with selective formatting
                 const enhancedSubDescription = enhanceDescriptionSelectively(subIssue.description, subIssue);
-                const subIssueBody = `${enhancedSubDescription}\n\n**Parent issue:** #${parentIssueNumber}`;
+                const subIssueBody = `${enhancedSubDescription}\n\n**Parent issue:** #${parentIssueNumber}\n\n<!-- SYNC-MANAGED -->`;
 
                 const created = await octokit.rest.issues.create({
                     owner,
                     repo,
                     title: subIssue.title || "Sub-task",
-                    body: subIssueBody
+                    body: subIssueBody,
+                    labels: [SYNC_LABEL] // Add sync label to sub-issues
                 });
                 subIssueData = created.data;
                 subIssues[i].issue = created.data.number; // Update the subIssue object
@@ -270,7 +339,7 @@ async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, file
             } else {
                 // Update existing sub-issue title and body with selective formatting
                 const enhancedSubDescription = enhanceDescriptionSelectively(subIssue.description, subIssue);
-                const subIssueBody = `${enhancedSubDescription}\n\n**Parent issue:** #${parentIssueNumber}`;
+                const subIssueBody = `${enhancedSubDescription}\n\n**Parent issue:** #${parentIssueNumber}\n\n<!-- SYNC-MANAGED -->`;
 
                 await updateIssueContent({
                     owner,
@@ -372,9 +441,18 @@ async function findOrCreateIssue({ owner, repo, filePath, fmTitle, body, existin
     // Skip the deprecated search API and create new issue directly
     console.log(`Creating new issue for: ${fmTitle}`);
 
-    // Create with selective description enhancement
+    // Create with selective description enhancement and sync marker
     const enhancedBody = enhanceDescriptionSelectively(body, frontmatterData || {});
-    const created = await octokit.rest.issues.create({ owner, repo, title: fmTitle, body: enhancedBody });
+    const bodyWithMarker = `${enhancedBody}\n\n<!-- SYNC-MANAGED -->`;
+
+    const created = await octokit.rest.issues.create({
+        owner,
+        repo,
+        title: fmTitle,
+        body: bodyWithMarker,
+        labels: [SYNC_LABEL] // Add sync label to new issues
+    });
+
     // Write back issue number into the md file immediately
     const raw = fs.readFileSync(filePath, "utf8");
     const parsed = matter(raw);
@@ -735,6 +813,86 @@ function walkMdFilesRel(dir) {
     return out;
 }
 
+// Handle deletion of orphaned issues
+async function handleDeletedFiles(processedIssueNumbers, project, owner, repo) {
+    console.log("\n=== Checking for orphaned issues (deleted .md files) ===");
+
+    try {
+        // Get all issues from the project
+        const projectIssues = await getProjectIssues(project.id);
+
+        // Find issues that were created by our sync but no longer have .md files
+        const orphanedIssues = projectIssues.filter(item => {
+            const issue = item.content;
+            if (!issue || !issue.number) return false;
+
+            // Check if this issue was processed from a .md file
+            const wasProcessed = processedIssueNumbers.has(issue.number);
+            if (wasProcessed) return false;
+
+            // Check if issue has sync markers (either label or body marker)
+            const hasLabel = issue.labels && issue.labels.nodes.some(label => label.name === SYNC_LABEL);
+            const hasMarker = issue.body && issue.body.includes("<!-- SYNC-MANAGED -->");
+
+            return hasLabel || hasMarker;
+        });
+
+        console.log(`Found ${orphanedIssues.length} orphaned issues (sync-managed but no corresponding .md file)`);
+
+        for (const item of orphanedIssues) {
+            const issue = item.content;
+            console.log(`Processing orphaned issue #${issue.number}: "${issue.title}"`);
+
+            try {
+                // Option A: Close the issue (safer - preserves history)
+                await octokit.rest.issues.update({
+                    owner,
+                    repo,
+                    issue_number: issue.number,
+                    state: 'closed'
+                });
+
+                // Add a comment explaining why it was closed
+                await octokit.rest.issues.createComment({
+                    owner,
+                    repo,
+                    issue_number: issue.number,
+                    body: `🤖 **Auto-closed by sync process**\n\nThis issue was automatically closed because its corresponding markdown file was deleted from the repository.\n\n_If this was a mistake, you can reopen this issue and recreate the markdown file._`
+                });
+
+                console.log(`✅ Closed orphaned issue #${issue.number}`);
+
+                // Optional: Remove from project (uncomment if you prefer this)
+                // try {
+                //     await octokit.graphql(`
+                //         mutation($projectId:ID!,$itemId:ID!){
+                //             deleteProjectV2Item(input:{projectId:$projectId, itemId:$itemId}){
+                //                 deletedItemId
+                //             }
+                //         }
+                //     `, { projectId: project.id, itemId: item.id });
+                //     console.log(`🗑️  Removed issue #${issue.number} from project`);
+                // } catch (removeError) {
+                //     console.warn(`Failed to remove issue #${issue.number} from project:`, removeError.message);
+                // }
+
+            } catch (error) {
+                console.warn(`❌ Failed to close orphaned issue #${issue.number}:`, error.message);
+            }
+        }
+
+        if (orphanedIssues.length > 0) {
+            console.log(`✅ Processed ${orphanedIssues.length} orphaned issues`);
+        } else {
+            console.log(`ℹ️  No orphaned issues found`);
+        }
+
+    } catch (error) {
+        console.error(`❌ Error during orphaned issue cleanup:`, error.message);
+        // Don't fail the entire process for this
+    }
+}
+
 // ---------- MAIN ----------
 
 (async () => {
@@ -753,6 +911,9 @@ function walkMdFilesRel(dir) {
     const project = await getProjectNode();
     const { map: fieldMap } = await getProjectFields(project.id);
     const statusField = fieldMap.get(STATUS_FIELD_NAME);
+
+    // Track which issues have been processed from .md files
+    const processedIssueNumbers = new Set();
 
     for (const file of files) {
         let filePath = path.resolve(tasksDir, file); // Use absolute path
@@ -791,10 +952,14 @@ function walkMdFilesRel(dir) {
         });
         console.log(`${issue.created ? "Created" : "Using"} issue #${issue.number} — ${issue.html_url}`);
 
+        // Track this issue as processed
+        processedIssueNumbers.add(issue.number);
+
         // ALWAYS update title and body (even for existing issues) with selective enhancement
         if (!issue.created) {
             const enhancedBody = enhanceDescriptionSelectively(body, data);
-            await updateIssueContent({ owner, repo, issueNumber: issue.number, title, body: enhancedBody });
+            const bodyWithMarker = `${enhancedBody}\n\n<!-- SYNC-MANAGED -->`;
+            await updateIssueContent({ owner, repo, issueNumber: issue.number, title, body: bodyWithMarker });
         }
 
         // Add to project
@@ -816,6 +981,11 @@ function walkMdFilesRel(dir) {
                 filePath,
                 project, // Pass project for field updates
                 fieldMap // Pass fieldMap for field updates
+            });
+
+            // Track sub-issues as processed too
+            createdSubIssues.forEach(subIssue => {
+                processedIssueNumbers.add(subIssue.number);
             });
 
             // Add sub-issue references to relationships comment
@@ -876,6 +1046,9 @@ function walkMdFilesRel(dir) {
         }
     }
 
+    // After processing all files, handle orphaned issues (deletion detection)
+    await handleDeletedFiles(processedIssueNumbers, project, owner, repo);
+
     // Commit any frontmatter updates
     if (fs.existsSync(".git")) {
         const { execSync } = require("child_process");
@@ -899,7 +1072,7 @@ function walkMdFilesRel(dir) {
 
                 // Add and commit changes
                 execSync("git add -A");
-                execSync('git commit -m "Update issue numbers, sub-issues, and comment history in Markdown files"');
+                execSync('git commit -m "Update issue numbers, sub-issues, comment history and handle deletions"');
 
                 // Push changes
                 try {

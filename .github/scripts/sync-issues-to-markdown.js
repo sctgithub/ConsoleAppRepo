@@ -23,7 +23,7 @@ function ensureDirectories() {
         fs.mkdirSync(TASKS_DIR, { recursive: true });
         console.log(`Created directory: ${TASKS_DIR}`);
     }
-    if (!fs.existsSync(IMAGES_DIR)) {
+    if (!fs.existsExists(IMAGES_DIR)) {
         fs.mkdirSync(IMAGES_DIR, { recursive: true });
         console.log(`Created directory: ${IMAGES_DIR}`);
     }
@@ -481,6 +481,32 @@ async function getProjectIssues(projectId) {
     return allIssues;
 }
 
+// --- Recursive walker that RETURNS RELATIVE PATHS ---
+function walkMdFilesRel(dir) {
+    const out = [];
+
+    // Check if directory exists
+    if (!fs.existsSync(dir)) {
+        console.log(`Directory "${dir}" does not exist`);
+        return out;
+    }
+
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+    for (const e of entries) {
+        const full = path.join(dir, e.name);
+
+        if (e.isDirectory()) {
+            // Recursively walk subdirectories
+            out.push(...walkMdFilesRel(full));
+        } else if (e.isFile() && e.name.toLowerCase().endsWith(".md")) {
+            // store as RELATIVE to TASKS_DIR
+            out.push(path.relative(dir === TASKS_DIR ? TASKS_DIR : TASKS_DIR, full));
+        }
+    }
+    return out;
+}
+
 // Find existing markdown file for an issue number
 function findExistingMarkdownFile(issueNumber) {
     console.log(`Searching for existing markdown file for issue #${issueNumber}`);
@@ -526,6 +552,186 @@ function findExistingMarkdownFile(issueNumber) {
 
     console.log(`No existing file found for issue #${issueNumber}`);
     return null;
+}
+
+// Delete associated images for a markdown file
+function deleteAssociatedImages(filePath, issueNumber) {
+    try {
+        const fileDir = path.dirname(filePath);
+        const baseName = path.basename(filePath, '.md');
+        const imagesDeleted = [];
+
+        // Look for images in the same directory and Images directory
+        const searchDirs = [fileDir, IMAGES_DIR];
+
+        for (const searchDir of searchDirs) {
+            if (!fs.existsSync(searchDir)) continue;
+
+            const files = fs.readdirSync(searchDir);
+
+            for (const file of files) {
+                const fullPath = path.join(searchDir, file);
+
+                // Check if it's an image file
+                if (!/\.(png|jpg|jpeg|gif|webp|svg)$/i.test(file)) continue;
+
+                // Check if image is associated with this issue
+                // Look for patterns like: baseName_*, issue-123_*, etc.
+                const associatedPatterns = [
+                    new RegExp(`^${baseName}[_-]`, 'i'),
+                    new RegExp(`issue[_-]?${issueNumber}[_-]`, 'i'),
+                    new RegExp(`${issueNumber}[_-]`, 'i')
+                ];
+
+                const isAssociated = associatedPatterns.some(pattern => pattern.test(file));
+
+                if (isAssociated) {
+                    try {
+                        fs.unlinkSync(fullPath);
+                        imagesDeleted.push(file);
+                        console.log(`Deleted associated image: ${file}`);
+                    } catch (error) {
+                        console.warn(`Failed to delete image ${file}: ${error.message}`);
+                    }
+                }
+            }
+        }
+
+        return imagesDeleted;
+
+    } catch (error) {
+        console.warn(`Error while searching for associated images: ${error.message}`);
+        return [];
+    }
+}
+
+// Handle deletion detection from GitHub side
+async function handleGitHubSideDeletions(projectIssues) {
+    console.log("\n=== Checking for GitHub-side deletions ===");
+
+    try {
+        // Get all existing .md files with their issue numbers
+        const existingMdFiles = walkMdFilesRel(TASKS_DIR);
+        const existingIssueFiles = new Map(); // issueNumber -> filePath
+
+        console.log(`Found ${existingMdFiles.length} existing .md files`);
+
+        for (const relativeFile of existingMdFiles) {
+            const filePath = path.resolve(TASKS_DIR, relativeFile);
+
+            try {
+                const raw = fs.readFileSync(filePath, "utf8");
+                const { data } = matter(raw);
+
+                if (data.issue && typeof data.issue === 'number') {
+                    existingIssueFiles.set(data.issue, filePath);
+                }
+            } catch (error) {
+                console.warn(`Error reading ${filePath}: ${error.message}`);
+                continue;
+            }
+        }
+
+        console.log(`Found ${existingIssueFiles.size} .md files with issue numbers`);
+
+        // Get current project issue numbers (open issues only)
+        const projectIssueNumbers = new Set(
+            projectIssues
+                .filter(item => item.content && item.content.state === 'OPEN')
+                .map(item => item.content.number)
+        );
+
+        console.log(`Found ${projectIssueNumbers.size} open issues in project`);
+
+        // Find .md files that no longer have corresponding GitHub issues in the project
+        const orphanedFiles = [];
+
+        for (const [issueNumber, filePath] of existingIssueFiles) {
+            if (!projectIssueNumbers.has(issueNumber)) {
+                // Double-check if the issue still exists in GitHub (maybe closed or removed from project)
+                try {
+                    const { owner, repo } = github.context.repo;
+                    const issue = await octokit.rest.issues.get({
+                        owner,
+                        repo,
+                        issue_number: issueNumber
+                    });
+
+                    if (issue.data.state === 'CLOSED') {
+                        orphanedFiles.push({
+                            filePath,
+                            issueNumber,
+                            reason: 'closed'
+                        });
+                    } else {
+                        orphanedFiles.push({
+                            filePath,
+                            issueNumber,
+                            reason: 'removed-from-project'
+                        });
+                    }
+                } catch (error) {
+                    if (error.status === 404) {
+                        orphanedFiles.push({
+                            filePath,
+                            issueNumber,
+                            reason: 'deleted'
+                        });
+                    } else {
+                        console.warn(`Error checking issue #${issueNumber}: ${error.message}`);
+                    }
+                }
+            }
+        }
+
+        console.log(`Found ${orphanedFiles.length} orphaned .md files`);
+
+        // Handle orphaned files
+        for (const { filePath, issueNumber, reason } of orphanedFiles) {
+            console.log(`Processing orphaned file: ${path.relative(process.cwd(), filePath)} (Issue #${issueNumber} - ${reason})`);
+
+            try {
+                // Delete associated images first
+                const deletedImages = deleteAssociatedImages(filePath, issueNumber);
+                if (deletedImages.length > 0) {
+                    console.log(`Deleted ${deletedImages.length} associated images for issue #${issueNumber}`);
+                }
+
+                // Delete the markdown file
+                fs.unlinkSync(filePath);
+                console.log(`Deleted orphaned .md file: ${path.relative(process.cwd(), filePath)}`);
+
+                // Also try to clean up empty directories
+                const parentDir = path.dirname(filePath);
+                if (parentDir !== TASKS_DIR) {
+                    try {
+                        const remainingFiles = fs.readdirSync(parentDir);
+                        if (remainingFiles.length === 0) {
+                            fs.rmdirSync(parentDir);
+                            console.log(`Removed empty directory: ${path.relative(process.cwd(), parentDir)}`);
+                        }
+                    } catch (error) {
+                        // Directory not empty or other error, ignore
+                    }
+                }
+
+            } catch (error) {
+                console.warn(`Failed to delete orphaned file ${filePath}: ${error.message}`);
+            }
+        }
+
+        if (orphanedFiles.length > 0) {
+            console.log(`Processed ${orphanedFiles.length} orphaned files`);
+            return true; // Indicate that changes were made
+        } else {
+            console.log(`No orphaned files found`);
+            return false;
+        }
+
+    } catch (error) {
+        console.error(`Error during GitHub-side deletion detection: ${error.message}`);
+        return false;
+    }
 }
 
 // Create or update markdown file for an issue
@@ -784,6 +990,9 @@ async function syncIssuesFromGitHub() {
         console.log("\n=== Getting Project Issues ===");
         const projectIssues = await getProjectIssues(project.id);
 
+        // Handle GitHub-side deletions FIRST (before processing issues)
+        const deletionsMade = await handleGitHubSideDeletions(projectIssues);
+
         console.log(`\n=== Processing ${projectIssues.length} issues ===`);
 
         let updatedCount = 0;
@@ -810,9 +1019,10 @@ async function syncIssuesFromGitHub() {
         console.log(`Total issues found: ${projectIssues.length}`);
         console.log(`Files updated/created: ${updatedCount}`);
         console.log(`Issues skipped: ${skippedCount}`);
+        console.log(`Deletions handled: ${deletionsMade ? 'Yes' : 'No'}`);
         console.log(`Sync completed successfully.`);
 
-        return updatedCount;
+        return updatedCount + (deletionsMade ? 1 : 0);
 
     } catch (error) {
         console.error("=== Sync failed ===");
