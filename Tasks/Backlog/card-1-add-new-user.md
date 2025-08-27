@@ -1,6 +1,25 @@
 ---
 title: Card 1-Add New User
 description: >-
+  > This is a quote block for important notes
+
+
+  `Code snippet example`
+
+
+  [Link example](https://github.com)
+
+
+  1. Numbered list item 1
+
+  2. Numbered list item 2
+
+  3. Numbered list item 3
+
+
+  ---
+
+
   ### As an admin, I want to add new users so that they can log in and access
   the system.
 
@@ -25,6 +44,9 @@ description: >-
   - [ ] Database schema update
 
   - [ ] Validation logic
+
+
+  <!-- SYNC-MANAGED -->
 
 
   <!-- SYNC-MANAGED -->
