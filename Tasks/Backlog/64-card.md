@@ -1,7 +1,7 @@
 ---
 title: 64-Card
 description: Description 1
-issue: 64
+issue: 69
 status: Backlog
 size: S
 estimate: 15

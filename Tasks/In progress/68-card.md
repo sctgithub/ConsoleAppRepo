@@ -29,7 +29,7 @@ description: |-
   ---
 
   Description 1
-issue: 68
+issue: 71
 status: In progress
 size: S
 estimate: 15

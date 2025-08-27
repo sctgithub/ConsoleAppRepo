@@ -21,7 +21,7 @@ description: |-
 
   - [ ] xyz
   - [ ] pqr
-issue: 67
+issue: 73
 status: Ready
 size: S
 estimate: 5

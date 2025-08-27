@@ -35,7 +35,7 @@ description: >-
   - [ ] Task 2  
 
   - [ ] Task 3
-issue: 65
+issue: 70
 status: Backlog
 size: S
 estimate: 12

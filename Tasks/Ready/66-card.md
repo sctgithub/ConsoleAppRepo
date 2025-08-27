@@ -29,7 +29,7 @@ description: |-
   ---
 
   Description 1
-issue: 66
+issue: 72
 status: Ready
 size: S
 estimate: 10
