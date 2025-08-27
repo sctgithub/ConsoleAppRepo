@@ -50,7 +50,7 @@ description: >-
 
 
   <!-- SYNC-MANAGED -->
-issue: 76
+issue: 78
 status: Backlog
 size: L
 estimate: 16
@@ -82,5 +82,8 @@ commentHistory:
   - >-
     [2025-08-27][sctgithub] Image : Screenshot1:
     [IMAGE:Images/1756315511659-Screenshot1.png]
+  - >-
+    [2025-08-27][sctgithub] Image :
+    ![Screenshot1](https://raw.githubusercontent.com/sctgithub/ConsoleAppRepo/main/images/uploads/1756319297762-Screenshot1.png)
 ---
 
