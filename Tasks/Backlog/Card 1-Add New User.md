@@ -161,6 +161,9 @@ description: >-
 
 
   <!-- SYNC-MANAGED -->
+
+
+  <!-- SYNC-MANAGED -->
 issue: 78
 status: Backlog
 size: L
@@ -418,5 +421,8 @@ commentHistory:
   - >-
     [2025-08-30][sctgithub] Image :
     ![Screenshot1](https://raw.githubusercontent.com/sctgithub/ConsoleAppRepo/main/images/uploads/1756585175248-Screenshot1.png)
+  - >-
+    [2025-08-30][sctgithub] Image : Screenshot1:
+    [IMAGE:Images/1756585175248-Screenshot1.png]
 ---
 
