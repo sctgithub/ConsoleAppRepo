@@ -1,6 +1,6 @@
 ---
 title: Card 3 - Appointment Booking
-description: >
+description: >-
   ### As a patient, I want to book appointments with available doctors so that I
   can get treatment.
 
@@ -21,7 +21,9 @@ description: >
   - [ ] Integrate with doctor schedules.
 
   - [ ] Email/SMS notifications.
-enhanceDescription: true
+
+
+  <!-- SYNC-MANAGED -->
 issue: 83
 status: Ready for deploy to staging
 size: S
@@ -36,16 +38,17 @@ assignees:
   - sctgithub
 labels:
   - enhancement
+  - auto-sync
 priority: Critical
 sprint: Sprint 1
-relationships:
-  - '#35'
+comments:
+  - 'Image Description : [IMAGE:../Images/Appointment Booking.png]'
 commentHistory:
   - >-
     [2025-08-31][sctgithub] Image Description : ![Appointment
     Booking](https://raw.githubusercontent.com/sctgithub/ConsoleAppRepo/main/images/uploads/1756660914140-Appointment
     Booking.png)
-comments:
-  - 'Image Description : [IMAGE:../Images/Appointment Booking.png]'
+relationships:
+  - '#35'
 ---
 
