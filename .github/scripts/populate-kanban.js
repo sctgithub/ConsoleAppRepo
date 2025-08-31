@@ -20,78 +20,72 @@ const octokit = github.getOctokit(token);
 
 const mdToBool = v => typeof v === "string" ? v.trim().length > 0 : !!v;
 
-// Function to selectively enhance description with missing formatting elements
+// Function to selectively enhance description - DISABLED by default
 function enhanceDescriptionSelectively(originalDescription, frontmatter) {
     if (!originalDescription) originalDescription = "";
 
-    // Check if enhancement is explicitly disabled
-    if (frontmatter && frontmatter.enhanceDescription === false) {
-        console.log('Description enhancement disabled by frontmatter flag');
-        return originalDescription;
-    }
+    // Check if enhancement is explicitly enabled (changed default behavior)
+    if (frontmatter && frontmatter.enhanceDescription === true) {
+        console.log('Description enhancement enabled by frontmatter flag');
 
-    const formatElements = [
-        {
-            check: /^###\s+/m,
-            template: "### Heading"
-        },
-        {
-            check: /\*\*.*?\*\*/,
-            template: "**Bold text example**"
-        },
-        {
-            check: /\*.*?\*/,
-            template: "*Italic text example*"
-        },
-        {
-            check: /^>\s+/m,
-            template: "> This is a quote block for important notes"
-        },
-        {
-            check: /`.*?`/,
-            template: "`Code snippet example`"
-        },
-        {
-            check: /\[.*?\]\(.*?\)/,
-            template: "[Link example](https://github.com)"
-        },
-        {
-            check: /^-\s+/m,
-            template: "- Unordered list item 1\n- Unordered list item 2\n- Unordered list item 3"
-        },
-        {
-            check: /^\d+\.\s+/m,
-            template: "1. Numbered list item 1\n2. Numbered list item 2\n3. Numbered list item 3"
-        },
-        {
-            check: /^-\s+\[\s*[x\s]\]\s+/m,
-            template: "**Task Checklist:**\n- [ ] Task 1 to complete\n- [ ] Task 2 to complete\n- [ ] Task 3 to complete"
+        const formatElements = [
+            {
+                check: /^###\s+/m,
+                template: "### Heading"
+            },
+            {
+                check: /\*\*.*?\*\*/,
+                template: "**Bold text example**"
+            },
+            {
+                check: /\*.*?\*/,
+                template: "*Italic text example*"
+            },
+            {
+                check: /^>\s+/m,
+                template: "> This is a quote block for important notes"
+            },
+            {
+                check: /`.*?`/,
+                template: "`Code snippet example`"
+            },
+            {
+                check: /\[.*?\]\(.*?\)/,
+                template: "[Link example](https://github.com)"
+            },
+            {
+                check: /^-\s+/m,
+                template: "- Unordered list item 1\n- Unordered list item 2\n- Unordered list item 3"
+            },
+            {
+                check: /^\d+\.\s+/m,
+                template: "1. Numbered list item 1\n2. Numbered list item 2\n3. Numbered list item 3"
+            },
+            {
+                check: /^-\s+\[\s*[x\s]\]\s+/m,
+                template: "**Task Checklist:**\n- [ ] Task 1 to complete\n- [ ] Task 2 to complete\n- [ ] Task 3 to complete"
+            }
+        ];
+
+        const missingElements = [];
+
+        // Check which elements are missing
+        for (const element of formatElements) {
+            if (!element.check.test(originalDescription)) {
+                missingElements.push(element.template);
+            }
         }
-    ];
 
-    const missingElements = [];
-
-    // Check which elements are missing
-    for (const element of formatElements) {
-        if (!element.check.test(originalDescription)) {
-            missingElements.push(element.template);
+        // Add missing elements at the top if any
+        if (missingElements.length > 0) {
+            const enhancedDescription = missingElements.join("\n\n") + "\n\n---\n\n";
+            console.log(`Added ${missingElements.length} missing formatting elements`);
+            return enhancedDescription + originalDescription;
         }
     }
 
-    // If no elements are missing, return original
-    if (missingElements.length === 0) {
-        console.log('All formatting elements already present, no enhancement needed');
-        return originalDescription;
-    }
-
-    // Add missing elements at the top
-    let enhancedDescription = "";
-    if (missingElements.length > 0) {
-        enhancedDescription = missingElements.join("\n\n") + "\n\n---\n\n";
-        console.log(`Added ${missingElements.length} missing formatting elements`);
-    }
-
-    return enhancedDescription + originalDescription;
+    console.log('Description enhancement disabled (default behavior)');
+    return originalDescription;
 }
 
 // ---------- GraphQL helpers ----------
