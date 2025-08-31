@@ -4,9 +4,9 @@ on:
   push:
     paths:
       - "Tasks/**/*.md"
-  schedule:
+  # schedule:
     # Run sync every hour to catch external changes
-    - cron: '0 */2 *  * *'
+    # - cron: '0 */2 *  * *'
   workflow_dispatch: # Allow manual trigger
 
 permissions:
