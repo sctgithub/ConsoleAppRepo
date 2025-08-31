@@ -20,6 +20,19 @@ const octokit = github.getOctokit(token);
 
 const mdToBool = v => typeof v === "string" ? v.trim().length > 0 : !!v;
 
+// Helper function to write YAML with proper formatting
+function writeMarkdownWithYAML(filePath, content, frontmatter) {
+    const yamlOptions = {
+        lineWidth: -1,      // Don't wrap long lines
+        noRefs: true,       // Don't use YAML references  
+        quotingType: '"',   // Use double quotes when needed
+        forceQuotes: false, // Only quote when necessary
+        flowLevel: -1       // Use block style for arrays and objects
+    };
+
+    fs.writeFileSync(filePath, matter.stringify(content, frontmatter, { yaml: yamlOptions }));
+}
+
 // Function to selectively enhance description - DISABLED by default
 function enhanceDescriptionSelectively(originalDescription, frontmatter) {
     if (!originalDescription) originalDescription = "";
@@ -414,7 +427,7 @@ async function createSubIssues({ owner, repo, parentIssueNumber, subIssues, file
         const raw = fs.readFileSync(filePath, "utf8");
         const parsed = matter(raw);
         parsed.data.subIssues = subIssues; // Update with the modified subIssues array
-        fs.writeFileSync(filePath, matter.stringify(parsed.content, parsed.data));
+        writeMarkdownWithYAML(filePath, parsed.content, parsed.data);
         console.log(`Updated sub-issues in ${filePath}`);
     } catch (error) {
         console.warn(`Failed to update sub-issues in markdown file:`, error.message);
@@ -451,7 +464,7 @@ async function findOrCreateIssue({ owner, repo, filePath, fmTitle, body, existin
     const raw = fs.readFileSync(filePath, "utf8");
     const parsed = matter(raw);
     parsed.data.issue = created.data.number;
-    fs.writeFileSync(filePath, matter.stringify(parsed.content, parsed.data));
+    writeMarkdownWithYAML(filePath, parsed.content, parsed.data);
     return { number: created.data.number, node_id: created.data.node_id, html_url: created.data.html_url, created: true };
 }
 

@@ -17,6 +17,19 @@ if (!OWNER || !PROJECT_NUMBER) { core.setFailed("OWNER/PROJECT_NUMBER missing");
 
 const octokit = github.getOctokit(token);
 
+// Helper function to write YAML with proper formatting
+function writeMarkdownWithYAML(filePath, content, frontmatter) {
+    const yamlOptions = {
+        lineWidth: -1,      // Don't wrap long lines
+        noRefs: true,       // Don't use YAML references  
+        quotingType: '"',   // Use double quotes when needed
+        forceQuotes: false, // Only quote when necessary
+        flowLevel: -1       // Use block style for arrays and objects
+    };
+
+    fs.writeFileSync(filePath, matter.stringify(content, frontmatter, { yaml: yamlOptions }));
+}
+
 // Create directories if they don't exist
 function ensureDirectories() {
     if (!fs.existsSync(TASKS_DIR)) {
@@ -789,8 +802,7 @@ async function createMarkdownFile(issue, projectFields) {
         // Create comment history entries
         const commentHistory = processedComments.map(comment => {
             const dateOnly = comment.createdAt.split('T')[0];
-            const safeComment = comment.body.replace(/"/g, '\\"').replace(/\n/g, '\\n');
-            return `[${dateOnly}][${comment.author}] ${safeComment}`;
+            return `[${dateOnly}][${comment.author}] ${comment.body}`;
         });
 
         return commentHistory;
@@ -926,11 +938,9 @@ async function createMarkdownFile(issue, projectFields) {
 
         // Generate filename based on title
         const safeTitle = issueData.title
-            .replace(/[^\w\s-]/g, '')
-            .replace(/\s+/g, '-')
-            .toLowerCase()
-            .substring(0, 30);
-        const filename = `${safeTitle}.md`;
+            .replace(/[^\w\s\-]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
 
         // Determine folder based on status
         let targetDir = TASKS_DIR;
@@ -967,7 +977,7 @@ async function createMarkdownFile(issue, projectFields) {
     return true;
 }
 
-// Main sync function
+// Main sync function - FIXED VERSION
 async function syncIssuesFromGitHub() {
     console.log("=== Starting GitHub issues sync ===");
     console.log(`Owner: ${OWNER}`);
@@ -998,10 +1008,17 @@ async function syncIssuesFromGitHub() {
         let updatedCount = 0;
         let skippedCount = 0;
 
-        // Process each issue
+        // Process each issue - BUT SKIP CLOSED ISSUES (these may have been closed by deletion detection)
         for (const issue of projectIssues) {
-            if (!issue.content || issue.content.state === 'CLOSED') {
-                console.log(`Skipping closed/invalid issue: ${issue.content ? `#${issue.content.number}` : 'Unknown'}`);
+            if (!issue.content) {
+                console.log(`Skipping invalid issue: Unknown`);
+                skippedCount++;
+                continue;
+            }
+
+            // IMPORTANT: Skip closed issues - they may have been closed by the populate-kanban.js deletion process
+            if (issue.content.state === 'CLOSED') {
+                console.log(`Skipping closed issue #${issue.content.number}: "${issue.content.title}" (may have been deleted)`);
                 skippedCount++;
                 continue;
             }
