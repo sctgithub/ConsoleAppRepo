@@ -67,21 +67,21 @@ function enhanceDescriptionSelectively(originalDescription, frontmatter) {
             }
         ];
 
-        const missingElements = [];
+        //const missingElements = [];
 
         // Check which elements are missing
-        for (const element of formatElements) {
-            if (!element.check.test(originalDescription)) {
-                missingElements.push(element.template);
-            }
-        }
+        //for (const element of formatElements) {
+        //    if (!element.check.test(originalDescription)) {
+        //        missingElements.push(element.template);
+        //    }
+        //}
 
         // Add missing elements at the top if any
-        if (missingElements.length > 0) {
-            const enhancedDescription = missingElements.join("\n\n") + "\n\n---\n\n";
-            console.log(`Added ${missingElements.length} missing formatting elements`);
-            return enhancedDescription + originalDescription;
-        }
+        //if (missingElements.length > 0) {
+        //    const enhancedDescription = missingElements.join("\n\n") + "\n\n---\n\n";
+        //    console.log(`Added ${missingElements.length} missing formatting elements`);
+        //    return enhancedDescription + originalDescription;
+        //}
     }
 
     console.log('Description enhancement disabled (default behavior)');

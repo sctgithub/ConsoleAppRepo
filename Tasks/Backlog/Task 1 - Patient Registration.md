@@ -1,25 +1,6 @@
 ---
-title: 1st Tasks
-description: >-
-  > This is a quote block for important notes
-
-
-  `Code snippet example`
-
-
-  [Link example](https://github.com)
-
-
-  1. Numbered list item 1
-
-  2. Numbered list item 2
-
-  3. Numbered list item 3
-
-
-  ---
-
-
+title: Task 1 - Patient Registration
+description: |
   ### As a receptionist, I want to register new patients so that their medical
   records can be created and maintained.
 
@@ -44,7 +25,6 @@ description: >-
   - [ ] Connect to patient records database.
 
 
-  <!-- SYNC-MANAGED -->
 issue: 81
 status: Backlog
 size: S
@@ -62,12 +42,10 @@ labels:
   - auto-sync
 priority: Critical
 sprint: Sprint 1
-comments:
-  - 'Sample Patient Registration : [IMAGE:../Images/Patient Registration.png]'
+comments:  
 commentHistory:
   - >-
     [2025-08-31][sctgithub] Sample Patient Registration : ![Patient
     Registration](https://raw.githubusercontent.com/sctgithub/ConsoleAppRepo/main/images/uploads/1756656841977-Patient
     Registration.png)
 ---
-
