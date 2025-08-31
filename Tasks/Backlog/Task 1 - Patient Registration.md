@@ -1,6 +1,25 @@
 ---
 title: 1st Tasks
-description: >
+description: >-
+  > This is a quote block for important notes
+
+
+  `Code snippet example`
+
+
+  [Link example](https://github.com)
+
+
+  1. Numbered list item 1
+
+  2. Numbered list item 2
+
+  3. Numbered list item 3
+
+
+  ---
+
+
   ### As a receptionist, I want to register new patients so that their medical
   records can be created and maintained.
 
@@ -23,7 +42,9 @@ description: >
   - [ ] Build backend API for patient creation.
 
   - [ ] Connect to patient records database.
-enhanceDescription: true
+
+
+  <!-- SYNC-MANAGED -->
 issue: 81
 status: Backlog
 size: S
@@ -38,15 +59,15 @@ assignees:
   - sctgithub
 labels:
   - enhancement
+  - auto-sync
 priority: Critical
 sprint: Sprint 1
-relationships: null
+comments:
+  - 'Sample Patient Registration : [IMAGE:../Images/Patient Registration.png]'
 commentHistory:
   - >-
     [2025-08-31][sctgithub] Sample Patient Registration : ![Patient
     Registration](https://raw.githubusercontent.com/sctgithub/ConsoleAppRepo/main/images/uploads/1756656841977-Patient
     Registration.png)
-comments:
-  - 'Sample Patient Registration : [IMAGE:../Images/Patient Registration.png]'
 ---
 
