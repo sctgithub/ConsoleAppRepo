@@ -908,21 +908,13 @@ async function handleDeletedFiles(processedIssueNumbers, project, owner, repo) {
     }
 }
 
-// ---------- MAIN ----------
+// ---------- MAIN - FIXED VERSION ----------
 
 (async () => {
     const { owner, repo } = repoContext();
     const tasksDir = path.join(process.cwd(), TASKS_DIR);
-    if (!fs.existsSync(tasksDir)) { console.log("No tasks dir"); return; }
 
-    const files = walkMdFilesRel(TASKS_DIR);
-    if (!files.length) {
-        console.log("No md files found in Tasks directory");
-        return;
-    }
-
-    console.log(`Found ${files.length} markdown files to process`);
-
+    // Get project information first - we need this for deletion detection even if no .md files exist
     const project = await getProjectNode();
     const { map: fieldMap } = await getProjectFields(project.id);
     const statusField = fieldMap.get(STATUS_FIELD_NAME);
@@ -930,138 +922,152 @@ async function handleDeletedFiles(processedIssueNumbers, project, owner, repo) {
     // Track which issues have been processed from .md files
     const processedIssueNumbers = new Set();
 
-    for (const file of files) {
-        let filePath = path.resolve(tasksDir, file); // Use absolute path
+    // Check if Tasks directory exists and process files if it does
+    if (fs.existsSync(tasksDir)) {
+        const files = walkMdFilesRel(TASKS_DIR);
 
-        // Check if file still exists (it might have been moved in a previous iteration)
-        if (!fs.existsSync(filePath)) {
-            console.log(`File ${filePath} no longer exists, skipping...`);
-            continue;
-        }
+        if (files.length > 0) {
+            console.log(`Found ${files.length} markdown files to process`);
 
-        console.log(`Processing file: ${path.relative(process.cwd(), filePath)}`);
+            for (const file of files) {
+                let filePath = path.resolve(tasksDir, file); // Use absolute path
 
-        const raw = fs.readFileSync(filePath, "utf8");
-        const { data, content } = matter(raw);
+                // Check if file still exists (it might have been moved in a previous iteration)
+                if (!fs.existsSync(filePath)) {
+                    console.log(`File ${filePath} no longer exists, skipping...`);
+                    continue;
+                }
 
-        // Ensure the file lives in a folder named after its Status
-        if (data.status) {
-            const relocated = moveFileToStatusFolder(filePath, data.status);
-            if (relocated !== filePath) {
-                console.log(`Moved ${path.relative(process.cwd(), filePath)} → ${path.relative(process.cwd(), relocated)} based on status "${data.status}"`);
-                filePath = relocated;
+                console.log(`Processing file: ${path.relative(process.cwd(), filePath)}`);
 
-                // Re-read the file from its new location
-                const relocatedRaw = fs.readFileSync(filePath, "utf8");
-                const relocatedParsed = matter(relocatedRaw);
-                Object.assign(data, relocatedParsed.data); // Update data with any changes from the move
-            }
-        }
+                const raw = fs.readFileSync(filePath, "utf8");
+                const { data, content } = matter(raw);
 
-        const title = (data.title || path.basename(file, ".md")).trim();
-        const body = (data.description || content || "").trim();
+                // Ensure the file lives in a folder named after its Status
+                if (data.status) {
+                    const relocated = moveFileToStatusFolder(filePath, data.status);
+                    if (relocated !== filePath) {
+                        console.log(`Moved ${path.relative(process.cwd(), filePath)} → ${path.relative(process.cwd(), relocated)} based on status "${data.status}"`);
+                        filePath = relocated;
 
-        // Ensure issue exists (reusing data.issue if present)
-        const issue = await findOrCreateIssue({
-            owner, repo, filePath, fmTitle: title, body, existingIssue: data.issue, frontmatterData: data
-        });
-        console.log(`${issue.created ? "Created" : "Using"} issue #${issue.number} — ${issue.html_url}`);
+                        // Re-read the file from its new location
+                        const relocatedRaw = fs.readFileSync(filePath, "utf8");
+                        const relocatedParsed = matter(relocatedRaw);
+                        Object.assign(data, relocatedParsed.data); // Update data with any changes from the move
+                    }
+                }
 
-        // Track this issue as processed
-        processedIssueNumbers.add(issue.number);
+                const title = (data.title || path.basename(file, ".md")).trim();
+                const body = (data.description || content || "").trim();
 
-        // ALWAYS update title and body (even for existing issues) with selective enhancement
-        if (!issue.created) {
-            const enhancedBody = enhanceDescriptionSelectively(body, data);
-            const bodyWithMarker = `${enhancedBody}\n\n<!-- SYNC-MANAGED -->`;
-            await updateIssueContent({ owner, repo, issueNumber: issue.number, title, body: bodyWithMarker });
-        }
-
-        // Add to project
-        const itemId = await addIssueToProject(project.id, issue.node_id);
-
-        // Issue-side sync
-        const assignees = Array.isArray(data.assignees) ? data.assignees : [];
-        const labels = Array.isArray(data.labels) ? data.labels : [];
-        const milestoneTitle = (data.milestone || "").trim();
-        await setIssueBasics({ owner, repo, issueNumber: issue.number, assignees, labels, milestoneTitle });
-
-        // Handle sub-issues
-        if (Array.isArray(data.subIssues) && data.subIssues.length) {
-            const createdSubIssues = await createSubIssues({
-                owner,
-                repo,
-                parentIssueNumber: issue.number,
-                subIssues: data.subIssues,
-                filePath,
-                project, // Pass project for field updates
-                fieldMap // Pass fieldMap for field updates
-            });
-
-            // Track sub-issues as processed too
-            createdSubIssues.forEach(subIssue => {
-                processedIssueNumbers.add(subIssue.number);
-            });
-
-            // Add sub-issue references to relationships comment
-            if (createdSubIssues.length > 0) {
-                const subIssueRefs = createdSubIssues.map(sub => `#${sub.number}`);
-                const existingRels = Array.isArray(data.relationships) ? data.relationships : [];
-                const allRels = [...existingRels, ...subIssueRefs];
-
-                await upsertComment({
-                    owner, repo, issue_number: issue.number,
-                    header: RELATIONSHIP_HEADER,
-                    body: allRels.map(String).join("\n")
+                // Ensure issue exists (reusing data.issue if present)
+                const issue = await findOrCreateIssue({
+                    owner, repo, filePath, fmTitle: title, body, existingIssue: data.issue, frontmatterData: data
                 });
+                console.log(`${issue.created ? "Created" : "Using"} issue #${issue.number} — ${issue.html_url}`);
+
+                // Track this issue as processed
+                processedIssueNumbers.add(issue.number);
+
+                // ALWAYS update title and body (even for existing issues) with selective enhancement
+                if (!issue.created) {
+                    const enhancedBody = enhanceDescriptionSelectively(body, data);
+                    const bodyWithMarker = `${enhancedBody}\n\n<!-- SYNC-MANAGED -->`;
+                    await updateIssueContent({ owner, repo, issueNumber: issue.number, title, body: bodyWithMarker });
+                }
+
+                // Add to project
+                const itemId = await addIssueToProject(project.id, issue.node_id);
+
+                // Issue-side sync
+                const assignees = Array.isArray(data.assignees) ? data.assignees : [];
+                const labels = Array.isArray(data.labels) ? data.labels : [];
+                const milestoneTitle = (data.milestone || "").trim();
+                await setIssueBasics({ owner, repo, issueNumber: issue.number, assignees, labels, milestoneTitle });
+
+                // Handle sub-issues
+                if (Array.isArray(data.subIssues) && data.subIssues.length) {
+                    const createdSubIssues = await createSubIssues({
+                        owner,
+                        repo,
+                        parentIssueNumber: issue.number,
+                        subIssues: data.subIssues,
+                        filePath,
+                        project, // Pass project for field updates
+                        fieldMap // Pass fieldMap for field updates
+                    });
+
+                    // Track sub-issues as processed too
+                    createdSubIssues.forEach(subIssue => {
+                        processedIssueNumbers.add(subIssue.number);
+                    });
+
+                    // Add sub-issue references to relationships comment
+                    if (createdSubIssues.length > 0) {
+                        const subIssueRefs = createdSubIssues.map(sub => `#${sub.number}`);
+                        const existingRels = Array.isArray(data.relationships) ? data.relationships : [];
+                        const allRels = [...existingRels, ...subIssueRefs];
+
+                        await upsertComment({
+                            owner, repo, issue_number: issue.number,
+                            header: RELATIONSHIP_HEADER,
+                            body: allRels.map(String).join("\n")
+                        });
+                    }
+                }
+
+                // Relationships: record as a comment list with references (GitHub auto-links)
+                if (Array.isArray(data.relationships) && data.relationships.length) {
+                    await upsertComment({
+                        owner, repo, issue_number: issue.number,
+                        header: RELATIONSHIP_HEADER,
+                        body: data.relationships.map(String).join("\n")
+                    });
+                }
+
+                // Handle comments with history system
+                if (Array.isArray(data.comments) && data.comments.length) {
+                    await handleCommentsWithHistory({
+                        owner, repo, issue_number: issue.number,
+                        header: COMMENT_HEADER,
+                        comments: data.comments,
+                        filePath,
+                        frontmatter: data
+                    });
+                }
+
+                // Project fields
+                const desired = {
+                    [STATUS_FIELD_NAME]: data.status,
+                    "Sprint": data.sprint,
+                    "Priority": data.priority,
+                    "Size": data.size,
+                    "Estimate": data.estimate,
+                    "Dev Hours": data.devHours,
+                    "QA Hours": data.qaHours,
+                    "Planned Start": data.plannedStart,
+                    "Planned End": data.plannedEnd,
+                    "Actual Start": data.actualStart,
+                    "Actual End": data.actualEnd
+                };
+
+                for (const [name, val] of Object.entries(desired)) {
+                    const field = fieldMap.get(name);
+                    if (field && mdToBool(val)) {
+                        await setFieldValue({ projectId: project.id, itemId, field, value: val });
+                        console.log(`Set field ${name} = ${val}`);
+                    }
+                }
             }
+        } else {
+            console.log("No md files found in Tasks directory");
         }
-
-        // Relationships: record as a comment list with references (GitHub auto-links)
-        if (Array.isArray(data.relationships) && data.relationships.length) {
-            await upsertComment({
-                owner, repo, issue_number: issue.number,
-                header: RELATIONSHIP_HEADER,
-                body: data.relationships.map(String).join("\n")
-            });
-        }
-
-        // Handle comments with history system
-        if (Array.isArray(data.comments) && data.comments.length) {
-            await handleCommentsWithHistory({
-                owner, repo, issue_number: issue.number,
-                header: COMMENT_HEADER,
-                comments: data.comments,
-                filePath,
-                frontmatter: data
-            });
-        }
-
-        // Project fields
-        const desired = {
-            [STATUS_FIELD_NAME]: data.status,
-            "Sprint": data.sprint,
-            "Priority": data.priority,
-            "Size": data.size,
-            "Estimate": data.estimate,
-            "Dev Hours": data.devHours,
-            "QA Hours": data.qaHours,
-            "Planned Start": data.plannedStart,
-            "Planned End": data.plannedEnd,
-            "Actual Start": data.actualStart,
-            "Actual End": data.actualEnd
-        };
-
-        for (const [name, val] of Object.entries(desired)) {
-            const field = fieldMap.get(name);
-            if (field && mdToBool(val)) {
-                await setFieldValue({ projectId: project.id, itemId, field, value: val });
-                console.log(`Set field ${name} = ${val}`);
-            }
-        }
+    } else {
+        console.log("No Tasks directory found - checking for orphaned issues");
     }
 
-    // After processing all files, handle orphaned issues (deletion detection)
+    // ALWAYS run deletion detection, regardless of whether Tasks directory exists or has files
+    // This is crucial when the entire Tasks directory is deleted or emptied
     await handleDeletedFiles(processedIssueNumbers, project, owner, repo);
 
     // Commit any frontmatter updates
