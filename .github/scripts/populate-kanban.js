@@ -807,7 +807,7 @@ function walkMdFilesRel(dir) {
     return out;
 }
 
-// Handle deletion of orphaned issues
+// Handle deletion of orphaned issues - IMPROVED VERSION
 async function handleDeletedFiles(processedIssueNumbers, project, owner, repo) {
     console.log("\n=== Checking for orphaned issues (deleted .md files) ===");
 
@@ -815,14 +815,35 @@ async function handleDeletedFiles(processedIssueNumbers, project, owner, repo) {
         // Get all issues from the project
         const projectIssues = await getProjectIssues(project.id);
 
-        // Find issues that were created by our sync but no longer have .md files
+        // Get all existing .md files to know what SHOULD exist
+        const existingMdFiles = walkMdFilesRel(TASKS_DIR);
+        const currentIssueNumbers = new Set();
+
+        // Parse existing .md files to get their issue numbers
+        for (const relativeFile of existingMdFiles) {
+            const filePath = path.resolve(TASKS_DIR, relativeFile);
+            try {
+                const raw = fs.readFileSync(filePath, "utf8");
+                const { data } = matter(raw);
+                if (data.issue && typeof data.issue === 'number') {
+                    currentIssueNumbers.add(data.issue);
+                }
+            } catch (error) {
+                console.warn(`Error reading ${filePath}: ${error.message}`);
+                continue;
+            }
+        }
+
+        console.log(`Found ${currentIssueNumbers.size} issues in current .md files`);
+
+        // Find issues in project that have sync markers but no corresponding .md file
         const orphanedIssues = projectIssues.filter(item => {
             const issue = item.content;
             if (!issue || !issue.number) return false;
 
-            // Check if this issue was processed from a .md file
-            const wasProcessed = processedIssueNumbers.has(issue.number);
-            if (wasProcessed) return false;
+            // Check if this issue has a corresponding .md file
+            const hasCorrespondingFile = currentIssueNumbers.has(issue.number);
+            if (hasCorrespondingFile) return false;
 
             // Check if issue has sync markers (either label or body marker)
             const hasLabel = issue.labels && issue.labels.nodes.some(label => label.name === SYNC_LABEL);
@@ -838,7 +859,7 @@ async function handleDeletedFiles(processedIssueNumbers, project, owner, repo) {
             console.log(`Processing orphaned issue #${issue.number}: "${issue.title}"`);
 
             try {
-                // Option A: Close the issue (safer - preserves history)
+                // Option 1: Close the issue and remove from project
                 await octokit.rest.issues.update({
                     owner,
                     repo,
@@ -856,22 +877,22 @@ async function handleDeletedFiles(processedIssueNumbers, project, owner, repo) {
 
                 console.log(`✅ Closed orphaned issue #${issue.number}`);
 
-                // Optional: Remove from project (uncomment if you prefer this)
-                // try {
-                //     await octokit.graphql(`
-                //         mutation($projectId:ID!,$itemId:ID!){
-                //             deleteProjectV2Item(input:{projectId:$projectId, itemId:$itemId}){
-                //                 deletedItemId
-                //             }
-                //         }
-                //     `, { projectId: project.id, itemId: item.id });
-                //     console.log(`🗑️  Removed issue #${issue.number} from project`);
-                // } catch (removeError) {
-                //     console.warn(`Failed to remove issue #${issue.number} from project:`, removeError.message);
-                // }
+                // Option 2: Remove from project board (more thorough cleanup)
+                try {
+                    await octokit.graphql(`
+                        mutation($projectId:ID!,$itemId:ID!){
+                            deleteProjectV2Item(input:{projectId:$projectId, itemId:$itemId}){
+                                deletedItemId
+                            }
+                        }
+                    `, { projectId: project.id, itemId: item.id });
+                    console.log(`🗑️  Removed issue #${issue.number} from project board`);
+                } catch (removeError) {
+                    console.warn(`Failed to remove issue #${issue.number} from project:`, removeError.message);
+                }
 
             } catch (error) {
-                console.warn(`❌ Failed to close orphaned issue #${issue.number}:`, error.message);
+                console.warn(`❌ Failed to process orphaned issue #${issue.number}:`, error.message);
             }
         }
 
