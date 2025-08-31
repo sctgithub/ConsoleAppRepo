@@ -4,36 +4,16 @@ description: >-
   ### As a receptionist, I want to register new patients so that their medical
   records can be created and maintained.
 
-
-
-
   **Acceptance Criteria:**
-
-
   - Form for patient details (name, age, gender, contact, address).
-
-
   - Unique patient ID generated automatically.
-
-
   - Data saved in database.
 
-
-
-
   **Task Checklist:**
-
-
   - [ ] Design patient registration form (UI).
-
-
   - [ ] Build backend API for patient creation.
-
-
   - [ ] Connect to patient records database.
 
-
-  <!-- SYNC-MANAGED -->
 issue: 81
 status: Backlog
 size: S
@@ -52,15 +32,7 @@ labels:
 priority: Critical
 sprint: Sprint 1
 comments:
-  - 'Sample Patient Registration : [IMAGE:../Images/Patient_Registration.png]'
 commentHistory:
-  - >-
-    [2025-08-31][sctgithub] Sample Patient Registration :
-    ![Patient_Registration](https://raw.githubusercontent.com/sctgithub/ConsoleAppRepo/main/images/uploads/1756657570978-Patient_Registration.png)
-  - >-
-    [2025-08-31][sctgithub] Sample Patient Registration : ![Patient
-    Registration](https://raw.githubusercontent.com/sctgithub/ConsoleAppRepo/main/images/uploads/1756656841977-Patient
-    Registration.png)
   - >-
     [2025-08-31][sctgithub] Sample Patient Registration : Patient_Registration:
     [IMAGE:Images/1756657570978-Patient_Registration.png]
