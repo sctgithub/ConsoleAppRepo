@@ -4,16 +4,15 @@ description: >-
   ### As a receptionist, I want to register new patients so that their medical
   records can be created and maintained.
 
-  **Acceptance Criteria:**
-  - Form for patient details (name, age, gender, contact, address).
-  - Unique patient ID generated automatically.
-  - Data saved in database.
+  **Acceptance Criteria:** - Form for patient details (name, age, gender,
+  contact, address). - Unique patient ID generated automatically. - Data saved
+  in database.
 
-  **Task Checklist:**
-  - [ ] Design patient registration form (UI).
-  - [ ] Build backend API for patient creation.
-  - [ ] Connect to patient records database.
+  **Task Checklist:** - [ ] Design patient registration form (UI). - [ ] Build
+  backend API for patient creation. - [ ] Connect to patient records database.
 
+
+  <!-- SYNC-MANAGED -->
 issue: 81
 status: Backlog
 size: S
@@ -31,7 +30,7 @@ labels:
   - auto-sync
 priority: Critical
 sprint: Sprint 1
-comments:
+comments: []
 commentHistory:
   - >-
     [2025-08-31][sctgithub] Sample Patient Registration : Patient_Registration:
