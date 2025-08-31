@@ -1,8 +1,7 @@
 ---
-title: Task 1 - Patient Registration
+title: Tasks 1 - Patient Registration
 description: |
-  ### As a receptionist, I want to register new patients so that their medical
-  records can be created and maintained.
+  ### As a receptionist, I want to register new patients so that their medical records can be created and maintained.
 
 
 
@@ -42,10 +41,8 @@ labels:
   - auto-sync
 priority: Critical
 sprint: Sprint 1
-comments:  
-commentHistory:
-  - >-
-    [2025-08-31][sctgithub] Sample Patient Registration : ![Patient
-    Registration](https://raw.githubusercontent.com/sctgithub/ConsoleAppRepo/main/images/uploads/1756656841977-Patient
-    Registration.png)
+comments:
+  - "Sample Patient Registration : [IMAGE:../Images/Patient_Registration.png]"
+commentHistory: []
 ---
+
