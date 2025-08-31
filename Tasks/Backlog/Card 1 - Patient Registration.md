@@ -1,6 +1,25 @@
 ---
 title: Card 1 - Patient Registration
-description: >
+description: >-
+  > This is a quote block for important notes
+
+
+  `Code snippet example`
+
+
+  [Link example](https://github.com)
+
+
+  1. Numbered list item 1
+
+  2. Numbered list item 2
+
+  3. Numbered list item 3
+
+
+  ---
+
+
   ### As a receptionist, I want to register new patients so that their medical
   records can be created and maintained.
 
@@ -21,7 +40,9 @@ description: >
   - [ ] Build backend API for patient creation.
 
   - [ ] Connect to patient records database.
-enhanceDescription: true
+
+
+  <!-- SYNC-MANAGED -->
 issue: 80
 status: Backlog
 size: S
@@ -36,14 +57,17 @@ assignees:
   - sctgithub
 labels:
   - enhancement
+  - auto-sync
 priority: Critical
 sprint: Sprint 1
-relationships: null
+comments:
+  - 'Image : [IMAGE:../Images/Patient_Registration.png]'
 commentHistory:
   - >-
     [2025-08-31][sctgithub] Image :
     ![Patient_Registration](https://raw.githubusercontent.com/sctgithub/ConsoleAppRepo/main/images/uploads/1756652980527-Patient_Registration.png)
-comments:
-  - 'Image : [IMAGE:../Images/Patient_Registration.png]'
+  - >-
+    [2025-08-31][sctgithub] Image : Patient_Registration:
+    [IMAGE:Images/1756652980527-Patient_Registration.png]
 ---
 
