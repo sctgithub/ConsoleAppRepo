@@ -1,6 +1,6 @@
 ---
 title: Tasks 1 - Patient Registration
-description: >
+description: >-
   ### As a receptionist, I want to register new patients so that their medical
   records can be created and maintained.
 
@@ -31,6 +31,9 @@ description: >
 
 
   - [ ] Connect to patient records database.
+
+
+  <!-- SYNC-MANAGED -->
 issue: 81
 status: Backlog
 size: S
@@ -54,5 +57,12 @@ commentHistory:
   - >-
     [2025-08-31][sctgithub] Sample Patient Registration :
     ![Patient_Registration](https://raw.githubusercontent.com/sctgithub/ConsoleAppRepo/main/images/uploads/1756657570978-Patient_Registration.png)
+  - >-
+    [2025-08-31][sctgithub] Sample Patient Registration : ![Patient
+    Registration](https://raw.githubusercontent.com/sctgithub/ConsoleAppRepo/main/images/uploads/1756656841977-Patient
+    Registration.png)
+  - >-
+    [2025-08-31][sctgithub] Sample Patient Registration : Patient_Registration:
+    [IMAGE:Images/1756657570978-Patient_Registration.png]
 ---
 
